@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'signup.dart';
 import 'login.dart';
+// Firebase の設定ファイル（Webの場合はfirebase_options.dartを使う）
+import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // 必須
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
@@ -65,7 +72,6 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // 背景の心電図アニメーション
           AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
@@ -75,7 +81,6 @@ class _SplashScreenState extends State<SplashScreen>
               );
             },
           ),
-          // ロゴ画像
           Center(
             child: Container(
               width: 150,
@@ -117,7 +122,7 @@ class RealisticECGPainter extends CustomPainter {
       ..color = Colors.redAccent
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6); // 光のぼかし
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
     final path = Path();
     double yCenter = size.height / 2;
@@ -130,19 +135,17 @@ class RealisticECGPainter extends CustomPainter {
       double localX = (x + offset) % waveLength;
       double y = yCenter;
 
-      // 心電図風の鋭い波形
       if (localX < waveLength * 0.05) {
         y = yCenter;
       } else if (localX < waveLength * 0.10) {
-        y = yCenter - 50; // QRS上昇
+        y = yCenter - 50;
       } else if (localX < waveLength * 0.15) {
-        y = yCenter + 20; // QRS下降
+        y = yCenter + 20;
       } else if (localX < waveLength * 0.20) {
         y = yCenter;
       } else if (localX < waveLength * 0.30) {
         y = yCenter +
-            sin((localX - waveLength * 0.2) / (waveLength * 0.1) * pi) *
-                15; // 小さな余波
+            sin((localX - waveLength * 0.2) / (waveLength * 0.1) * pi) * 15;
       } else {
         y = yCenter;
       }
@@ -172,7 +175,6 @@ class AccountCheckScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ロゴ画像
               Container(
                 width: 150,
                 height: 150,
@@ -216,8 +218,8 @@ class AccountCheckScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     '始める',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
