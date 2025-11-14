@@ -39,11 +39,16 @@ dependencies:
   google_maps_flutter_platform_interface: ^2.14.0
   geolocator: ^14.0.2
   firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+  image_picker: ^1.2.1
+  cloud_functions: ^6.0.4
+  analytics: ^2.0.3
+  firebase_auth: ^6.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  image_picker: ^0.8.7+4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
