@@ -4,25 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'login.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-// アプリ本体
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Account App',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const SignUpScreen(),
-    );
-  }
-}
-
-// サインアップ画面
+// -------------------- サインアップ画面 --------------------
 class SignUpScreen extends StatelessWidget {
   const SignUpScreen({super.key});
 
@@ -81,7 +65,7 @@ class SignUpScreen extends StatelessWidget {
   }
 }
 
-// ユーザー種別ごとの登録画面
+// -------------------- ユーザー種別ごとの登録画面 --------------------
 class UserTypeRegisterScreen extends StatefulWidget {
   final String userType;
   const UserTypeRegisterScreen({super.key, required this.userType});
@@ -103,7 +87,10 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
   final TextEditingController adminNameController = TextEditingController();
   final TextEditingController ownerNameController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
-  final TextEditingController adminCategoryController = TextEditingController();
+  String? category;
+  final TextEditingController homepageController = TextEditingController();
+  final TextEditingController xUrlController = TextEditingController();
+  final TextEditingController instagramController = TextEditingController();
 
   File? _iconImage;
   final ImagePicker _picker = ImagePicker();
@@ -202,10 +189,32 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
           validator: (v) => v == null || v.isEmpty ? '電話番号を入力してください' : null,
         ),
         const SizedBox(height: 16),
-        TextFormField(
-          controller: adminCategoryController,
+        DropdownButtonFormField<String>(
+          value: category,
+          items: const [
+            DropdownMenuItem(value: '美容系', child: Text('美容系')),
+            DropdownMenuItem(value: '修理業', child: Text('修理業')),
+            DropdownMenuItem(value: '飲食業', child: Text('飲食業')),
+            DropdownMenuItem(value: 'その他', child: Text('その他')),
+          ],
           decoration: const InputDecoration(labelText: '事業者カテゴリ'),
-          validator: (v) => v == null || v.isEmpty ? 'カテゴリを入力してください' : null,
+          onChanged: (v) => setState(() => category = v),
+          validator: (v) => v == null ? 'カテゴリを選択してください' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: homepageController,
+          decoration: const InputDecoration(labelText: 'ホームページURL（任意）'),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: xUrlController,
+          decoration: const InputDecoration(labelText: 'X URL（任意）'),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: instagramController,
+          decoration: const InputDecoration(labelText: 'Instagram URL（任意）'),
         ),
       ],
     );
@@ -248,7 +257,7 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const UserHomeScreen()),
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       } else {
         await firestore.collection('businesses').doc(uid).set({
@@ -259,7 +268,10 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
           'icon_image': iconUrl,
           'email': emailController.text.trim(),
           'phone_number': phoneController.text.trim(),
-          'admin_category': adminCategoryController.text.trim(),
+          'admin_category': category ?? '',
+          'homepage': homepageController.text.trim(),
+          'xUrl': xUrlController.text.trim(),
+          'instagramUrl': instagramController.text.trim(),
           'created_at': FieldValue.serverTimestamp(),
           'updated_at': FieldValue.serverTimestamp(),
           'is_auth': false,
@@ -268,7 +280,7 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const BusinessHomeScreen()),
+          MaterialPageRoute(builder: (_) => BusinessPendingScreen(uid: uid)),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -303,26 +315,54 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
   }
 }
 
-// 利用者ホーム画面
-class UserHomeScreen extends StatelessWidget {
-  const UserHomeScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('利用者ホーム')),
-      body: const Center(child: Text('利用者向けホーム画面です')),
-    );
-  }
-}
+// -------------------- 事業者認証待ち画面 --------------------
+class BusinessPendingScreen extends StatelessWidget {
+  final String uid;
+  const BusinessPendingScreen({super.key, required this.uid});
 
-// 事業者ホーム画面
-class BusinessHomeScreen extends StatelessWidget {
-  const BusinessHomeScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('事業者ホーム')),
-      body: const Center(child: Text('事業者向けホーム画面です')),
+    final docStream = FirebaseFirestore.instance.collection('businesses').doc(uid).snapshots();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final isAuth = data['is_auth'] ?? false;
+
+        if (isAuth) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          });
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('認証待ち')),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.lock, size: 80, color: Colors.orange),
+                  SizedBox(height: 24),
+                  Text('🔒 アカウント認証待ち',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 16),
+                  Text('管理者があなたの事業者アカウントを確認しています。\n認証が完了すると自動で開始できます。',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

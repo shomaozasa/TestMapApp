@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// -------------------- ログイン画面選択 --------------------
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -43,24 +44,20 @@ class LoginScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'どちらで始めますか？',
+              'どちらでログインしますか？',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 40),
             ElevatedButton(
               onPressed: () => _showLoginTypeDialog(context, '事業者'),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
               child: const Text('事業者でログイン'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => _showLoginTypeDialog(context, '利用者'),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
               child: const Text('利用者でログイン'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
             ),
           ],
         ),
@@ -69,6 +66,7 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
+// -------------------- ログインフォーム --------------------
 class LoginFormScreen extends StatefulWidget {
   final String userType;
   const LoginFormScreen({super.key, required this.userType});
@@ -85,6 +83,7 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
 
     try {
@@ -104,37 +103,32 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
         throw FirebaseAuthException(code: 'user-not-found', message: 'ユーザーデータが存在しません');
       }
 
-      if (widget.userType == '利用者') {
-        final isStopped = data['is_stoped'] ?? false;
-        final isAuth = data['is_auth'] ?? false;
-        final violated = data['violated'] ?? 0;
+      // 認証フラグをチェック
+      final isAuth = data['is_auth'] ?? false;
+      final isStopped = data['is_stoped'] ?? false;
+      final violated = data['violated'] ?? 0;
 
-        if (isStopped || violated >= 10) {
-          throw FirebaseAuthException(code: 'user-disabled', message: 'アカウントが停止されています');
-        }
-        if (!isAuth) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('メール認証が必要です')),
-          );
-          return;
-        }
-      } else {
-        final isStopped = data['is_stoped'] ?? false;
-        final isAuth = data['is_auth'] ?? false;
-
-        if (isStopped) {
-          throw FirebaseAuthException(code: 'user-disabled', message: 'アカウントが停止されています');
-        }
-        if (!isAuth) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('事業者認証が完了していません')),
-          );
-          return;
-        }
+      if (isStopped || (widget.userType == '利用者' && violated >= 10)) {
+        throw FirebaseAuthException(code: 'user-disabled', message: 'アカウントが停止されています');
       }
 
-      // ホーム画面遷移
-      if (!mounted) return;
+      if (!isAuth) {
+        // 認証待ち画面に遷移
+        if (widget.userType == '事業者') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const BusinessAuthPendingScreen()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const UserAuthPendingScreen()),
+          );
+        }
+        return;
+      }
+
+      // 認証済みはホーム画面へ
       if (widget.userType == '事業者') {
         Navigator.pushReplacement(
           context,
@@ -168,16 +162,14 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
               TextFormField(
                 controller: emailController,
                 decoration: const InputDecoration(labelText: 'メールアドレス'),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'メールアドレスを入力してください' : null,
+                validator: (v) => v == null || v.isEmpty ? 'メールアドレスを入力してください' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: passwordController,
                 decoration: const InputDecoration(labelText: 'パスワード'),
                 obscureText: true,
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'パスワードを入力してください' : null,
+                validator: (v) => v == null || v.isEmpty ? 'パスワードを入力してください' : null,
               ),
               const SizedBox(height: 32),
               ElevatedButton(
@@ -195,10 +187,82 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
   }
 }
 
-// 利用者ホーム画面
+// -------------------- 認証待ち画面 --------------------
+class UserAuthPendingScreen extends StatelessWidget {
+  const UserAuthPendingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('認証待ち')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_top, size: 80, color: Colors.orange),
+              const SizedBox(height: 24),
+              const Text(
+                'メール認証が完了していません。\nメールを確認してください。',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () {
+                  FirebaseAuth.instance.signOut();
+                  Navigator.pop(context);
+                },
+                child: const Text('戻る'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BusinessAuthPendingScreen extends StatelessWidget {
+  const BusinessAuthPendingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('認証待ち')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_top, size: 80, color: Colors.orange),
+              const SizedBox(height: 24),
+              const Text(
+                '事業者認証が完了していません。\n管理者による承認をお待ちください。',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () {
+                  FirebaseAuth.instance.signOut();
+                  Navigator.pop(context);
+                },
+                child: const Text('ログアウトして戻る'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------- ホーム画面 --------------------
 class UserHomeScreen extends StatelessWidget {
   const UserHomeScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,10 +272,8 @@ class UserHomeScreen extends StatelessWidget {
   }
 }
 
-// 事業者ホーム画面
 class BusinessHomeScreen extends StatelessWidget {
   const BusinessHomeScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
