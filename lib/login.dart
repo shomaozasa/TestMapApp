@@ -95,7 +95,6 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
 
       final uid = userCredential.user!.uid;
 
-      // コレクションとフィールドを物理名称に合わせる
       final collection = widget.userType == '利用者' ? 'users' : 'businesses';
       final doc = await FirebaseFirestore.instance.collection(collection).doc(uid).get();
       final data = doc.data();
@@ -103,7 +102,6 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
         throw FirebaseAuthException(code: 'user-not-found', message: 'ユーザーデータが存在しません');
       }
 
-      // 認証フラグをチェック
       final isAuth = data['is_auth'] ?? false;
       final isStopped = data['is_stoped'] ?? false;
       final violated = data['violated'] ?? 0;
@@ -113,7 +111,6 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
       }
 
       if (!isAuth) {
-        // 認証待ち画面に遷移
         if (widget.userType == '事業者') {
           Navigator.pushReplacement(
             context,
@@ -128,7 +125,6 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
         return;
       }
 
-      // 認証済みはホーム画面へ
       if (widget.userType == '事業者') {
         Navigator.pushReplacement(
           context,
@@ -171,7 +167,22 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
                 obscureText: true,
                 validator: (v) => v == null || v.isEmpty ? 'パスワードを入力してください' : null,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PasswordResetScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('パスワードを忘れた場合'),
+                ),
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _isLoading ? null : _login,
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
@@ -181,6 +192,72 @@ class _LoginFormScreenState extends State<LoginFormScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------- パスワードリセット --------------------
+class PasswordResetScreen extends StatefulWidget {
+  const PasswordResetScreen({super.key});
+
+  @override
+  State<PasswordResetScreen> createState() => _PasswordResetScreenState();
+}
+
+class _PasswordResetScreenState extends State<PasswordResetScreen> {
+  final TextEditingController emailController = TextEditingController();
+  bool _isSending = false;
+
+  Future<void> _sendResetEmail() async {
+    if (emailController.text.isEmpty) return;
+
+    setState(() => _isSending = true);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: emailController.text.trim(),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('リセットメールを送信しました')),
+      );
+      Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('送信失敗: ${e.message}')),
+      );
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('パスワードリセット')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '登録済みメールアドレスを入力してください',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'メールアドレス'),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _isSending ? null : _sendResetEmail,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+              child: _isSending
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('送信'),
+            ),
+          ],
         ),
       ),
     );
