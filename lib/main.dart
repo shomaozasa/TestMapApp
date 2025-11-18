@@ -172,7 +172,7 @@ class AccountCheckScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // ▼▼ 背景グラデーション ▼▼
+        // 背景グラデーション
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -225,15 +225,16 @@ class AccountCheckScreen extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
+                      backgroundColor: Colors.white, // 白色
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(30), // 高さの半分以上で長丸
                       ),
+                      elevation: 4, // 影の強さ
                     ),
                     child: const Text(
                       '始める',
                       style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange,),
                     ),
                   ),
                 ),
