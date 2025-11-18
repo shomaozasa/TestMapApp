@@ -47,20 +47,49 @@ class SignUpScreen extends StatelessWidget {
             const Text('どちらで始めますか？',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: () => _showConfirmationDialog(context, '事業者'),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              child: const Text('事業者として始める'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _showConfirmationDialog(context, '利用者'),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              child: const Text('利用者として始める'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildUserTypeButton(context, '事業者', Colors.orange),
+                _buildUserTypeButton(context, '利用者', Colors.blue),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // 丸ボタン＋ラベルの共通関数
+  Widget _buildUserTypeButton(BuildContext context, String userType, Color color) {
+    return Column(
+      children: [
+        Material(
+          color: color,
+          shape: const CircleBorder(),
+          elevation: 6,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _showConfirmationDialog(context, userType),
+            child: SizedBox(
+              width: 100,
+              height: 100,
+              child: Center(
+                child: Text(
+                  userType,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }
