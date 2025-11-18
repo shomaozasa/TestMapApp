@@ -5,12 +5,14 @@ import 'login.dart';
 // Firebase の設定ファイル（Webの場合はfirebase_options.dartを使う）
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // 必須
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  FirebaseAuth.instance.setLanguageCode('ja');
   runApp(const MyApp());
 }
 
