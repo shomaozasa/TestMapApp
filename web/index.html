@@ -1,36 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!-- ... (他のmetaタグなど) ... -->
+  
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    ★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆
+    ★ ここの key= を、あなたの firebase_options.dart に書かれている
+    ★ 正しいWeb用キーに書き換えてください！
+    ★
+    ★ 変更前 (F12ログより): ...key=AIzaSyAWu4vZr...PoSM0
+    ★ 変更後 (正しいキー): ...key=AIzaSyAZd1gcapHDVlLQZxKEiUAG3DKU0WVzNrk
+    ★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆★☆
   -->
-  <base href="$FLUTTER_BASE_HREF">
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAWu4vZrGUrwawsvtyBCjPzslGts4PoSM0"></script>
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="google_map_app">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>google_map_app</title>
-  <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
