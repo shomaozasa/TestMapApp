@@ -1,47 +1,78 @@
+import 'dart:ffi';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 /// Firestoreに保存するイベント情報のデータモデル
 class EventModel {
   final String id; // ドキュメントID
+  final String adminId; // 事業者ID
+  final String categoryId; // カテゴリID
   final String eventName; // イベント名
-  final String eventTime; // 開催時間 (例: "13:00-15:00")
-  final GeoPoint location; // 緯度経度
-  final Timestamp createdAt; // 作成日時
-
+  final DateTime startTime; // 開始時間 (日付も含む)
+  final DateTime endTime; // 終了時間
+  final String eventImage; // イベント画像のURL(firebaseのstrageのURL)
+  final GeoPoint location; // 座標
+  final String address; // 場所
   // --- ★ 1. 詳細説明フィールドを追加 ---
   final String description; // イベント詳細説明
+  final Timestamp createdAt; // 作成日時
+  final Timestamp updatedAt; // 更新日時
 
   EventModel({
     required this.id,
+    required this.adminId,
+    required this.categoryId,
     required this.eventName,
-    required this.eventTime,
+    required this.startTime,
+    required this.endTime,
+    required this.eventImage,
     required this.location,
+    required this.address,
+    required this.description,
     required this.createdAt,
-    required this.description, // ★ 1. コンストラクタにも追加
+    required this.updatedAt,
+    // ★ 1. コンストラクタにも追加
   });
 
   /// Firestoreのドキュメント（Map）からEventModelオブジェクトを生成する
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    // locationが存在し、GeoPoint型であることを確認
+    final GeoPoint locationData = data['location'] is GeoPoint
+        ? data['location']
+        : const GeoPoint(0, 0); // 存在しない、または型が異なる場合はデフォルト値を設定
     return EventModel(
       id: doc.id,
+      adminId: data['adminId'] ?? '',
+      categoryId: data['categoryId'] ?? '',
       eventName: data['eventName'] ?? '',
-      eventTime: data['eventTime'] ?? '',
-      location: data['location'] ?? const GeoPoint(0, 0),
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      startTime: data['startTime'] ?? '',
+      endTime: data['endTime'] ?? '',
+      eventImage: data['eventImage'] ?? '',
+      location: locationData, // x座標とｙ座標はここに含める
       // ★ 1. description も読み込む (存在しない場合は空文字)
-      description: data['description'] ?? '', 
+      address: data['address'] ?? '',
+      description: data['description'] ?? '',
+      createdAt: data['createdAt'] ?? Timestamp.now(),
+      updatedAt: data['updatedAt'] ?? Timestamp.now(),
     );
   }
 
   /// EventModelオブジェクトをFirestoreに保存可能なMap形式に変換する
   Map<String, dynamic> toFirestore() {
     return {
+      'adminId': adminId,
+      'categoryId': categoryId,
       'eventName': eventName,
-      'eventTime': eventTime,
+      'startTime': startTime,
+      'endTime': endTime,
+      'eventImage': eventImage,
       'location': location,
+      'address': address,
+      'description': description,
       'createdAt': createdAt,
-      'description': description, // ★ 1. 保存するMapにも追加
+      'updatedAt': updatedAt,
     };
   }
 }
