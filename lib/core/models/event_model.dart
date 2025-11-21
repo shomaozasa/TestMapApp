@@ -1,4 +1,4 @@
-import 'dart:ffi';
+// import 'dart:ffi';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -9,8 +9,7 @@ class EventModel {
   final String adminId; // 事業者ID
   final String categoryId; // カテゴリID
   final String eventName; // イベント名
-  final DateTime startTime; // 開始時間 (日付も含む)
-  final DateTime endTime; // 終了時間
+  final String eventTime; // 開催時間 (13:00-15:00)
   final String eventImage; // イベント画像のURL(firebaseのstrageのURL)
   final GeoPoint location; // 座標
   final String address; // 場所
@@ -24,8 +23,7 @@ class EventModel {
     required this.adminId,
     required this.categoryId,
     required this.eventName,
-    required this.startTime,
-    required this.endTime,
+    required this.eventTime,
     required this.eventImage,
     required this.location,
     required this.address,
@@ -47,8 +45,7 @@ class EventModel {
       adminId: data['adminId'] ?? '',
       categoryId: data['categoryId'] ?? '',
       eventName: data['eventName'] ?? '',
-      startTime: data['startTime'] ?? '',
-      endTime: data['endTime'] ?? '',
+      eventTime: data['eventTime'] ?? '',
       eventImage: data['eventImage'] ?? '',
       location: locationData, // x座標とｙ座標はここに含める
       // ★ 1. description も読み込む (存在しない場合は空文字)
@@ -65,8 +62,7 @@ class EventModel {
       'adminId': adminId,
       'categoryId': categoryId,
       'eventName': eventName,
-      'startTime': startTime,
-      'endTime': endTime,
+      'eventTime': eventTime,
       'eventImage': eventImage,
       'location': location,
       'address': address,

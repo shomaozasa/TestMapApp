@@ -23,8 +23,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
+  final TextEditingController _eventImageController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  
+
   bool _isLoadingSheet = false; // シート内の「OK」ボタン用
   bool _isLoadingLocation = false; // 「はじめる」ボタンの現在地取得用
 
@@ -46,6 +48,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     _eventNameController.dispose();
     _startTimeController.dispose();
     _endTimeController.dispose();
+    _eventImageController.dispose();
+    _addressController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -69,13 +73,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                 _controller.complete(controller);
               }
             },
-            
+
             // ★ 1. UIが重なるため、地図の操作領域を調整
-            padding: EdgeInsets.only(
-              top: topPadding,
-              bottom: bottomPadding,
-            ),
-            
+            padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+
             // ボトムシートが開いている間、地図の操作を無効化
             zoomGesturesEnabled: !_isBottomSheetOpen,
             scrollGesturesEnabled: !_isBottomSheetOpen,
@@ -83,16 +84,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
             tiltGesturesEnabled: !_isBottomSheetOpen,
 
             onTap: _onMapTapped,
-            myLocationEnabled: true, 
-            myLocationButtonEnabled: false, 
-            markers: <Marker>{
-              if (_tappedMarker != null) _tappedMarker!,
-            },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            markers: <Marker>{if (_tappedMarker != null) _tappedMarker!},
           ),
-          
+
           // ★ 2. 下部のUI (ボタン + 注意書き)
           _buildConfirmButtonAndHint(),
-          
+
           // ★ 3. 上部のUI (ボタンのみ)
           _buildTopOverlayUI(context),
         ],
@@ -122,9 +121,9 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
               icon: Icons.menu,
               onPressed: () {
                 // TODO: ハンバーガーメニューが押されたときの動作
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('メニューボタンが押されました')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('メニューボタンが押されました')));
               },
             ),
           ],
@@ -135,35 +134,34 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
 
   /// ★ 7. 丸いボタンのUIを生成するヘルパーメソッド
   Widget _buildCircleButton({
-// ... 既存コード ...
+    // ... 既存コード ...
     required BuildContext context,
     required IconData icon,
     required VoidCallback onPressed,
   }) {
     return Material(
-// ... 既存コード ...
-      elevation: 4.0, 
-      shape: const CircleBorder(), 
-      color: Colors.white, 
+      // ... 既存コード ...
+      elevation: 4.0,
+      shape: const CircleBorder(),
+      color: Colors.white,
       clipBehavior: Clip.antiAlias,
       child: IconButton(
-// ... 既存コード ...
+        // ... 既存コード ...
         icon: Icon(icon, color: Colors.black87),
         onPressed: onPressed,
       ),
     );
   }
 
-
   // (マップタップ時)
   void _onMapTapped(LatLng latLng) {
-// ... 既存コード ...
+    // ... 既存コード ...
     if (_isBottomSheetOpen) {
-      FocusScope.of(context).unfocus(); 
+      FocusScope.of(context).unfocus();
       return;
     }
     setState(() {
-// ... 既存コード ...
+      // ... 既存コード ...
       _tappedLatLng = latLng;
       _tappedMarker = Marker(
         markerId: const MarkerId('tapped_location'),
@@ -230,47 +228,48 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       ),
     );
   }
-  
+
   // (_onStartNowPressed, _showRegistrationSheet, _setEndTime, _parseTimeOfDay, _formatTimeOfDay, _submitEvent, _determinePosition は変更ありません)
   void _onStartNowPressed() async {
-// ... 既存コード ...
+    // ... 既存コード ...
     setState(() {
       _isLoadingLocation = true;
     });
 
     LatLng? locationToRegister;
-// ... 既存コード ...
+    // ... 既存コード ...
     if (_tappedLatLng != null) {
       locationToRegister = _tappedLatLng;
-    } 
-    else {
+    } else {
       try {
         Position position = await _determinePosition();
-// ... 既存コード ...
+        // ... 既存コード ...
         locationToRegister = LatLng(position.latitude, position.longitude);
 
         setState(() {
           _tappedLatLng = locationToRegister;
-// ... 既存コード ...
+          // ... 既存コード ...
           _tappedMarker = Marker(
             markerId: const MarkerId('tapped_location'),
             position: locationToRegister!,
-// ... 既存コード ...
-            icon:
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            // ... 既存コード ...
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           );
         });
-        
-        final GoogleMapController controller = await _controller.future;
-// ... 既存コード ...
-        controller.animateCamera(CameraUpdate.newLatLngZoom(locationToRegister, 16));
 
+        final GoogleMapController controller = await _controller.future;
+        // ... 既存コード ...
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(locationToRegister, 16),
+        );
       } catch (e) {
-// ... 既存コード ...
-        if(mounted) {
+        // ... 既存コード ...
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-// ... 既存コード ...
+              // ... 既存コード ...
               content: Text('現在地を取得できませんでした: ${e.toString()}'),
               backgroundColor: Colors.red,
             ),
@@ -280,77 +279,77 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
 
     setState(() {
-// ... 既存コード ...
+      // ... 既存コード ...
       _isLoadingLocation = false;
     });
 
     if (locationToRegister != null) {
-// ... 既存コード ...
+      // ... 既存コード ...
       _showRegistrationSheet();
     }
   }
 
-
   void _showRegistrationSheet() async {
-// ... 既存コード ...
+    // ... 既存コード ...
     setState(() {
       _isBottomSheetOpen = true;
       _isRegistrationSuccessful = false;
     });
 
     _eventNameController.clear();
-// ... 既存コード ...
-    _endTimeController.clear(); 
+    // ... 既存コード ...
+    _endTimeController.clear();
+    _eventImageController.clear();
+    _addressController.clear();
     _descriptionController.clear();
-    _isLoadingSheet = false; 
-    
+    _isLoadingSheet = false;
+
     _startTimeController.text = _formatTimeOfDay(TimeOfDay.now());
 
     try {
       await showModalBottomSheet(
-// ... 既存コード ...
+        // ... 既存コード ...
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.white,
-// ... 既存コード ...
+        // ... 既存コード ...
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         builder: (ctx) {
-// ... 既存コード ...
+          // ... 既存コード ...
           return StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
               return Padding(
-// ... 既存コード ...
+                // ... 既存コード ...
                 padding: EdgeInsets.only(
                   bottom: MediaQuery.of(ctx).viewInsets.bottom,
                   left: 24,
                   right: 24,
                   top: 24,
                 ),
-                child: SingleChildScrollView( 
+                child: SingleChildScrollView(
                   child: Column(
-// ... 既存コード ...
+                    // ... 既存コード ...
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         '出店登録',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-// ... 既存コード ...
+                      // ... 既存コード ...
                       const SizedBox(height: 8),
                       Text(
                         '${_tappedLatLng?.latitude.toStringAsFixed(5)}, ${_tappedLatLng?.longitude.toStringAsFixed(5)}',
-// ... 既存コード ...
+                        // ... 既存コード ...
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 24),
                       TextField(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         controller: _eventNameController,
                         decoration: const InputDecoration(
                           labelText: 'イベント名 (必須)',
@@ -358,44 +357,45 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       Row(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         children: [
                           Expanded(
                             child: TextField(
-// ... 既存コード ...
-                              controller: _startTimeController, 
+                              // ... 既存コード ...
+                              controller: _startTimeController,
                               decoration: InputDecoration(
                                 labelText: '開始時刻',
                                 border: const OutlineInputBorder(),
-// ... 既存コード ...
+                                // ... 既存コード ...
                                 suffixIcon: IconButton(
                                   icon: const Icon(Icons.update),
                                   tooltip: '現在時刻にリセット',
                                   onPressed: () {
-// ... 既存コード ...
+                                    // ... 既存コード ...
                                     setModalState(() {
-                                      _startTimeController.text = _formatTimeOfDay(TimeOfDay.now());
+                                      _startTimeController.text =
+                                          _formatTimeOfDay(TimeOfDay.now());
                                     });
                                   },
                                 ),
                               ),
-                              readOnly: false, 
+                              readOnly: false,
                               keyboardType: TextInputType.datetime,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextField(
-// ... 既存コード ...
-                              controller: _endTimeController, 
+                              // ... 既存コード ...
+                              controller: _endTimeController,
                               decoration: const InputDecoration(
                                 labelText: '終了時刻 (必須)',
-                                hintText: '例: 17:00', 
+                                hintText: '例: 17:00',
                                 border: OutlineInputBorder(),
                               ),
-                              readOnly: false, 
+                              readOnly: false,
                               keyboardType: TextInputType.datetime,
                             ),
                           ),
@@ -404,52 +404,96 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       const SizedBox(height: 8),
 
                       Row(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          const Text('終了時刻を簡単入力: ', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                          const Text(
+                            '終了時刻を簡単入力: ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
                           OutlinedButton(
-// ... 既存コード ...
+                            // ... 既存コード ...
                             onPressed: () => _setEndTime(setModalState, 1),
                             child: const Text('+1h'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 4),
                           OutlinedButton(
-// ... 既存コード ...
+                            // ... 既存コード ...
                             onPressed: () => _setEndTime(setModalState, 2),
                             child: const Text('+2h'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 4),
                           OutlinedButton(
-// ... 既存コード ...
+                            // ... 既存コード ...
                             onPressed: () => _setEndTime(setModalState, 3),
                             child: const Text('+3h'),
-                             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 12),
                       TextField(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         controller: _descriptionController,
                         decoration: const InputDecoration(
                           labelText: 'イベント詳細（任意）',
                           hintText: 'セールの情報やメニューなど...',
                           border: OutlineInputBorder(),
                         ),
-                        maxLines: 3, 
+                        maxLines: 3,
                         keyboardType: TextInputType.multiline,
                       ),
-                      
+
+                      const SizedBox(height: 12),
+                      TextField(
+                        // ... 既存コード ...
+                        controller: _eventImageController,
+                        decoration: const InputDecoration(
+                          labelText: '画像',
+                          hintText: '画像入れるところ',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                        keyboardType: TextInputType.multiline,
+                      ),
+
+                      const SizedBox(height: 12),
+                      TextField(
+                        // ... 既存コード ...
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          labelText: '住所',
+                          hintText: '開催場所を入力',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                        keyboardType: TextInputType.multiline,
+                      ),
+
                       const SizedBox(height: 20),
                       ElevatedButton(
-// ... 既存コード ...
+                        // ... 既存コード ...
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: Colors.orange, 
+                          backgroundColor: Colors.orange,
                           foregroundColor: Colors.white,
                         ),
                         onPressed: _isLoadingSheet
@@ -457,13 +501,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                             : () => _submitEvent(setModalState),
                         child: _isLoadingSheet
                             ? const CircularProgressIndicator(
-// ... 既存コード ...
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                // ... 既存コード ...
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               )
                             : const Text('OK (登録)'),
                       ),
-                      const SizedBox(height: 40), 
+                      const SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -473,11 +518,11 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         },
       );
     } finally {
-// ... 既存コード ...
+      // ... 既存コード ...
       setState(() {
         _isBottomSheetOpen = false;
         if (!_isRegistrationSuccessful) {
-// ... 既存コード ...
+          // ... 既存コード ...
           _tappedMarker = null;
           _tappedLatLng = null;
         }
@@ -486,58 +531,65 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   }
 
   void _setEndTime(StateSetter setModalState, int hoursToAdd) {
-// ... 既存コード ...
+    // ... 既存コード ...
     final TimeOfDay startTime = _parseTimeOfDay(_startTimeController.text);
     final TimeOfDay endTime = startTime.replacing(
-// ... 既存コード ...
-      hour: (startTime.hour + hoursToAdd) % 24
+      // ... 既存コード ...
+      hour: (startTime.hour + hoursToAdd) % 24,
     );
     setModalState(() {
-// ... 既存コード ...
+      // ... 既存コード ...
       _endTimeController.text = _formatTimeOfDay(endTime);
     });
     FocusScope.of(context).unfocus();
   }
 
   TimeOfDay _parseTimeOfDay(String formattedTime) {
-// ... 既存コード ...
+    // ... 既存コード ...
     try {
       final parts = formattedTime.split(':');
       if (parts.length == 2) {
-// ... 既存コード ...
+        // ... 既存コード ...
         final hour = int.tryParse(parts[0]);
         final minute = int.tryParse(parts[1]);
-        if (hour != null && minute != null && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        if (hour != null &&
+            minute != null &&
+            hour >= 0 &&
+            hour <= 23 &&
+            minute >= 0 &&
+            minute <= 59) {
           return TimeOfDay(hour: hour, minute: minute);
         }
       }
     } catch (e) {
-// ... 既存コード ...
+      // ... 既存コード ...
     }
-    return TimeOfDay.now(); 
+    return TimeOfDay.now();
   }
 
   String _formatTimeOfDay(TimeOfDay time) {
-// ... 既存コード ...
+    // ... 既存コード ...
     final String minute = time.minute.toString().padLeft(2, '0');
-    final String hour = time.hour.toString().padLeft(2, '0'); 
+    final String hour = time.hour.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
 
   void _submitEvent(StateSetter setModalState) async {
-// ... 既存コード ...
+    // ... 既存コード ...
     final eventName = _eventNameController.text;
     final startTime = _startTimeController.text;
-    final endTime = _endTimeController.text; 
+    final endTime = _endTimeController.text;
+    final eventImage = _eventImageController.text;
+    final address = _addressController.text;
     final description = _descriptionController.text;
 
     if (eventName.isEmpty ||
-// ... 既存コード ...
+        // ... 既存コード ...
         startTime.isEmpty ||
         endTime.isEmpty ||
         _tappedLatLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-// ... 既存コード ...
+        // ... 既存コード ...
         const SnackBar(
           content: Text('すべての必須項目を入力してください'),
           backgroundColor: Colors.red,
@@ -547,27 +599,29 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
 
     setModalState(() {
-// ... 既存コード ...
+      // ... 既存コード ...
       _isLoadingSheet = true;
     });
 
     try {
-// ... 既存コード ...
-      final eventTime = '$startTime - $endTime'; 
+      // ... 既存コード ...
+      final eventTime = '$startTime - $endTime';
 
       await _firestoreService.addEvent(
-// ... 既存コード ...
+        // ... 既存コード ...
         eventName: eventName,
         eventTime: eventTime,
+        eventImage: eventImage,
         location: _tappedLatLng!,
+        address: address,
         description: description,
       );
 
       _isRegistrationSuccessful = true;
-// ... 既存コード ...
-      if (mounted) Navigator.of(context).pop(); 
+      // ... 既存コード ...
+      if (mounted) Navigator.of(context).pop();
       if (mounted) {
-// ... 既存コード ...
+        // ... 既存コード ...
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('イベントを登録しました！'),
@@ -576,17 +630,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         );
       }
     } catch (e) {
-// ... 既存コード ...
+      // ... 既存コード ...
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登録に失敗しました: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('登録に失敗しました: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
-// ... 既存コード ...
+      // ... 既存コード ...
       if (mounted) {
         setModalState(() {
           _isLoadingSheet = false;
@@ -596,34 +647,34 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   }
 
   Future<Position> _determinePosition() async {
-// ... 既存コード ...
+    // ... 既存コード ...
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
-// ... 既存コード ...
+    // ... 既存コード ...
     if (!serviceEnabled) {
       return Future.error('ロケーションサービスが無効です。');
     }
 
     permission = await Geolocator.checkPermission();
-// ... 既存コード ...
+    // ... 既存コード ...
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission(); 
+      permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-// ... 既存コード ...
+        // ... 既存コード ...
         return Future.error('ロケーションの権限が拒否されました。');
       }
     }
-    
+
     if (permission == LocationPermission.deniedForever) {
-// ... 既存コード ...
+      // ... 既存コード ...
       return Future.error('ロケーションの権限が永久に拒否されています。設定から変更してください。');
-    } 
+    }
 
     return await Geolocator.getCurrentPosition(
-// ... 既存コード ...
-      desiredAccuracy: LocationAccuracy.high, 
+      // ... 既存コード ...
+      desiredAccuracy: LocationAccuracy.high,
     );
   }
 }
