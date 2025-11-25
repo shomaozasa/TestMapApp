@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:geolocator/geolocator.dart';
+// geocoding パッケージは削除
 
 class BusinessMapScreen extends StatefulWidget {
   const BusinessMapScreen({super.key});
@@ -23,12 +24,11 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  // ★ 1. 新しい項目のコントローラー
   final TextEditingController _addressController = TextEditingController();
   
-  // ★ 2. カテゴリ選択用の変数
+  // カテゴリ選択用
   final List<String> _categories = ['Food', 'Music', 'Shop', 'Art', 'Other'];
-  String _selectedCategory = 'Food'; // 初期値
+  String _selectedCategory = 'Food'; 
 
   bool _isLoadingSheet = false; 
   bool _isLoadingLocation = false; 
@@ -52,7 +52,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     _startTimeController.dispose();
     _endTimeController.dispose();
     _descriptionController.dispose();
-    // ★ 1. 住所コントローラーの破棄
     _addressController.dispose();
     super.dispose();
   }
@@ -94,8 +93,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       ),
     );
   }
-
-  // --- UIパーツ ---
 
   Widget _buildTopOverlayUI(BuildContext context) {
     return SafeArea(
@@ -156,6 +153,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       );
     });
+    // ★ 住所自動取得はなし (必要ならここで手動入力用のダイアログを出すなどのUXも考えられるが、今回はフォームで入力させる)
   }
 
   Widget _buildConfirmButtonAndHint() {
@@ -238,7 +236,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         
         final GoogleMapController controller = await _controller.future;
         controller.animateCamera(CameraUpdate.newLatLngZoom(locationToRegister, 16));
-
+        
       } catch (e) {
         if(mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -267,15 +265,13 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       _isRegistrationSuccessful = false;
     });
 
-    // フォームリセット
     _eventNameController.clear();
     _endTimeController.clear(); 
     _descriptionController.clear();
-    // ★ 1. 住所もクリア (本来はここでGeocodingして住所を入れる)
-    _addressController.text = "現在地付近"; 
-    // ★ 2. カテゴリもリセット
-    _selectedCategory = _categories.first;
+    // 住所欄は手入力用にクリア、もしくはデフォルト値を入れる
+    _addressController.text = ""; 
     
+    _selectedCategory = _categories.first;
     _isLoadingSheet = false; 
     _startTimeController.text = _formatTimeOfDay(TimeOfDay.now());
 
@@ -310,11 +306,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // --- ★ 3. 画像選択エリア (ダミーUI) ---
+                      // --- 画像選択 (ダミーUI) ---
                       Center(
                         child: InkWell(
                           onTap: () {
-                            // TODO: ImagePickerの実装
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('画像選択は未実装です')),
                             );
@@ -351,7 +346,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // --- ★ 4. カテゴリ選択 (Dropdown) ---
+                      // --- カテゴリ選択 ---
                       DropdownButtonFormField<String>(
                         value: _selectedCategory,
                         decoration: const InputDecoration(
@@ -373,7 +368,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // --- ★ 5. 住所入力 (TextField) ---
+                      // --- 住所入力 (手入力) ---
                       TextField(
                         controller: _addressController,
                         decoration: const InputDecoration(
@@ -385,7 +380,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 12),
                       
-                      // --- 時間入力 (ハイブリッド) ---
+                      // --- 時間入力 ---
                       Row(
                         children: [
                           Expanded(
@@ -534,21 +529,18 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     return '$hour:$minute';
   }
 
-  // ★★★ 修正：新しい入力値を使って登録 ★★★
   void _submitEvent(StateSetter setModalState) async {
     final eventName = _eventNameController.text;
     final startTime = _startTimeController.text;
     final endTime = _endTimeController.text; 
     final description = _descriptionController.text;
-    // ★ 1. 新しい項目の値を取得
     final address = _addressController.text;
     final category = _selectedCategory;
 
-    // バリデーション
     if (eventName.isEmpty ||
         startTime.isEmpty ||
         endTime.isEmpty ||
-        address.isEmpty || // 住所も必須に
+        address.isEmpty || 
         _tappedLatLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -566,17 +558,15 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     try {
       final eventTime = '$startTime - $endTime'; 
 
-      // 新しい必須パラメータを渡す
       await _firestoreService.addEvent(
         eventName: eventName,
         eventTime: eventTime,
         location: _tappedLatLng!,
         description: description,
-        // --- ★ 入力された値を渡す ---
-        adminId: "dummy_admin_id", // (認証未実装のため仮)
-        categoryId: category, // 選択されたカテゴリ
-        address: address, // 入力された住所
-        eventImage: "https://placehold.jp/150x150.png", // (仮のダミー画像URL)
+        adminId: "dummy_admin_id", 
+        categoryId: category, 
+        address: address, 
+        eventImage: "", // ダミー画像URL
       );
 
       _isRegistrationSuccessful = true;
