@@ -7,21 +7,32 @@ class FirestoreService {
 
   /// イベントを登録する
   Future<void> addEvent({
+    required String adminId, // ★ 事業者ID
+    required String categoryId, // ★ カテゴリID
     required String eventName,
     required String eventTime,
+    required String eventImage, // ★ 画像URL
     required LatLng location,
-    required String description, // ★ 1. description の引数を追加
+    required String address, // ★ 住所
+    required String description,
   }) async {
     try {
       final collectionRef = _db.collection('events');
+      // Google MapsのLatLngをFirestoreのGeoPointに変換
       final geoPoint = GeoPoint(location.latitude, location.longitude);
+      final now = Timestamp.now(); // 作成・更新日時用
 
       final data = {
+        'adminId': adminId,
+        'categoryId': categoryId,
         'eventName': eventName,
         'eventTime': eventTime,
+        'eventImage': eventImage,
         'location': geoPoint,
-        'createdAt': Timestamp.now(),
-        'description': description, // ★ 2. 保存データに description を追加
+        'address': address,
+        'description': description,
+        'createdAt': now,
+        'updatedAt': now, // 更新日時も初期値は作成日時と同じ
       };
 
       await collectionRef.add(data);
@@ -33,7 +44,6 @@ class FirestoreService {
 
   /// すべてのイベントをリアルタイムで取得する (Stream)
   Stream<List<EventModel>> getEventsStream() {
-// ... 既存コード ...
     return _db
         .collection('events')
         .orderBy('createdAt', descending: true)
