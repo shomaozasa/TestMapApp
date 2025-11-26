@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_map_app/core/features/user_flow/review_history_page.dart';
 
 class UserProfilePage extends StatelessWidget {
   const UserProfilePage({Key? key}) : super(key: key);
@@ -44,7 +45,7 @@ class UserProfilePage extends StatelessWidget {
             // プロフィール画像
             Transform.translate(
               offset: const Offset(0, -50),
-              child: CircleAvatar(
+              child: const CircleAvatar(
                 radius: 50,
                 backgroundImage: AssetImage("assets/user_icon.jpg"),
               ),
@@ -66,7 +67,18 @@ class UserProfilePage extends StatelessWidget {
               title: "あなたの活動",
               items: [
                 _menuItem(Icons.favorite_border, "お気に入り"),
-                _menuItem(Icons.reviews, "投稿したレビュー"),
+                _menuItem(
+                  Icons.reviews,
+                  "投稿したレビュー",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ReviewHistoryPage(),
+                      ),
+                    );
+                  },
+                ),
                 _menuItem(Icons.card_membership, "スタンプカード"),
               ],
             ),
@@ -117,16 +129,19 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
-  // アイテム1行
-  Widget _menuItem(IconData icon, String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 12),
-          Text(title),
-        ],
+  // 🔹 アイテム1行（タップ可能版）
+  Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap, // ← ここで onTap が使える！
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 12),
+            Text(title),
+          ],
+        ),
       ),
     );
   }
