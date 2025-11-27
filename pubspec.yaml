@@ -43,3 +43,4 @@ dependencies:
   cloud_functions: ^6.0.4
   analytics: ^2.0.3
   firebase_auth: ^6.1.2
+  firebase_app_check: ^0.4.1+2
