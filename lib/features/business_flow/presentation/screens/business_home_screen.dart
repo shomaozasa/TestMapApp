@@ -85,18 +85,6 @@ class BusinessHomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 30),
 
-                // 4. ステータスカード (未実装のプレースホルダー)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Row(
-                    children: [
-                      Expanded(child: _buildPlaceholderCard()),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildPlaceholderCard()),
-                    ],
-                  ),
-                ),
-
                 const SizedBox(height: 40),
 
                 // 5. メインボタン (マップ・予定)
@@ -150,27 +138,6 @@ class BusinessHomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- ヘルパーウィジェット ---
-
-  /// 白いプレースホルダーカード
-  Widget _buildPlaceholderCard() {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            spreadRadius: 2,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
           ),
         ],
       ),

@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data'; // ★ 画像データ(バイト)を扱うために追加
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
+// ★ 1. StorageService と ImagePicker をインポート
+import 'package:google_map_app/core/service/storage_service.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-// geocoding パッケージは削除
 
 class BusinessMapScreen extends StatefulWidget {
   const BusinessMapScreen({super.key});
@@ -13,34 +16,35 @@ class BusinessMapScreen extends StatefulWidget {
 }
 
 class _BusinessMapScreenState extends State<BusinessMapScreen> {
-  // --- マップ・UIの状態管理 ---
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
   Marker? _tappedMarker;
   LatLng? _tappedLatLng;
 
-  // --- フォームの状態管理 ---
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   
-  // カテゴリ選択用
   final List<String> _categories = ['Food', 'Music', 'Shop', 'Art', 'Other'];
   String _selectedCategory = 'Food'; 
+
+  // ★ 2. 画像関連の状態変数
+  XFile? _pickedImage; // 選んだ画像ファイル
+  Uint8List? _imageBytes; // Web表示用の画像データ
+  final ImagePicker _picker = ImagePicker(); // 画像選択機能
 
   bool _isLoadingSheet = false; 
   bool _isLoadingLocation = false; 
 
-  // --- 画面フローの状態管理 ---
   bool _isBottomSheetOpen = false;
   bool _isRegistrationSuccessful = false;
 
-  // --- サービス ---
   final FirestoreService _firestoreService = FirestoreService();
+  // ★ 3. StorageServiceのインスタンス
+  final StorageService _storageService = StorageService();
 
-  // --- マップ初期位置 ---
   static const CameraPosition _kTenjin = CameraPosition(
     target: LatLng(33.590354, 130.401719),
     zoom: 15.0,
@@ -93,6 +97,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       ),
     );
   }
+
+  // --- UIパーツ ---
 
   Widget _buildTopOverlayUI(BuildContext context) {
     return SafeArea(
@@ -153,7 +159,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       );
     });
-    // ★ 住所自動取得はなし (必要ならここで手動入力用のダイアログを出すなどのUXも考えられるが、今回はフォームで入力させる)
   }
 
   Widget _buildConfirmButtonAndHint() {
@@ -236,7 +241,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         
         final GoogleMapController controller = await _controller.future;
         controller.animateCamera(CameraUpdate.newLatLngZoom(locationToRegister, 16));
-        
+
       } catch (e) {
         if(mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -265,11 +270,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       _isRegistrationSuccessful = false;
     });
 
+    // フォームリセット
     _eventNameController.clear();
     _endTimeController.clear(); 
     _descriptionController.clear();
-    // 住所欄は手入力用にクリア、もしくはデフォルト値を入れる
     _addressController.text = ""; 
+    // ★ 4. 画像の状態もリセット
+    _pickedImage = null;
+    _imageBytes = null;
     
     _selectedCategory = _categories.first;
     _isLoadingSheet = false; 
@@ -306,13 +314,23 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // --- 画像選択 (ダミーUI) ---
+                      // --- ★ 5. 画像選択エリア (実装済み) ---
                       Center(
                         child: InkWell(
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('画像選択は未実装です')),
+                          onTap: () async {
+                            // 画像を選択する処理
+                            final XFile? image = await _picker.pickImage(
+                              source: ImageSource.gallery, // ギャラリーから
+                              imageQuality: 70, // 容量節約のため圧縮
                             );
+                            if (image != null) {
+                              // Webでも表示できるようにバイトデータを取得
+                              final Uint8List bytes = await image.readAsBytes();
+                              setModalState(() {
+                                _pickedImage = image;
+                                _imageBytes = bytes;
+                              });
+                            }
                           },
                           child: Container(
                             width: double.infinity,
@@ -321,18 +339,43 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                               color: Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.grey.shade400),
+                              // 画像がある場合は背景画像として表示
+                              image: _imageBytes != null
+                                  ? DecorationImage(
+                                      image: MemoryImage(_imageBytes!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text('イベント画像を追加', style: TextStyle(color: Colors.grey)),
-                              ],
-                            ),
+                            child: _imageBytes == null
+                                ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text('イベント画像を追加', style: TextStyle(color: Colors.grey)),
+                                    ],
+                                  )
+                                : null, // 画像があるときはアイコンを隠す
                           ),
                         ),
                       ),
+                      // 画像がある場合、削除ボタンを表示
+                      if (_imageBytes != null)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setModalState(() {
+                                _pickedImage = null;
+                                _imageBytes = null;
+                              });
+                            },
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            label: const Text('画像を削除', style: TextStyle(color: Colors.red)),
+                          ),
+                        ),
+                      
                       const SizedBox(height: 24),
 
                       // --- イベント名 ---
@@ -368,7 +411,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // --- 住所入力 (手入力) ---
+                      // --- 住所入力 ---
                       TextField(
                         controller: _addressController,
                         decoration: const InputDecoration(
@@ -529,6 +572,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     return '$hour:$minute';
   }
 
+  // ★★★ 登録処理 (画像アップロード追加) ★★★
   void _submitEvent(StateSetter setModalState) async {
     final eventName = _eventNameController.text;
     final startTime = _startTimeController.text;
@@ -556,6 +600,16 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     });
 
     try {
+      String imageUrl = "";
+
+      // ★ 6. 画像があればアップロードを実行
+      if (_pickedImage != null) {
+        imageUrl = await _storageService.uploadImage(
+          _pickedImage!,
+          'event_images', // 保存先フォルダ名
+        );
+      }
+
       final eventTime = '$startTime - $endTime'; 
 
       await _firestoreService.addEvent(
@@ -566,7 +620,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         adminId: "dummy_admin_id", 
         categoryId: category, 
         address: address, 
-        eventImage: "", // ダミー画像URL
+        eventImage: imageUrl, // ★ 取得したURLを保存 (なければ空文字)
       );
 
       _isRegistrationSuccessful = true;

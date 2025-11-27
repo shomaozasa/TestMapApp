@@ -42,15 +42,16 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
           final List<EventModel> events = snapshot.data!;
           
+          // イベントリストからマーカーセットを生成
           final Set<Marker> markers = events.map((event) {
             return Marker(
               markerId: MarkerId(event.id),
               position: LatLng(event.location.latitude, event.location.longitude),
-              // ★ マーカーの色をカテゴリによって変える等の拡張もここで可能
+              // カテゴリによってピンの色を変えることも可能（今回は赤で統一）
               icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
               infoWindow: InfoWindow(
                 title: event.eventName,
-                snippet: 'タップして詳細を見る',
+                snippet: 'タップして詳細を見る', // ここに画像は出せないのでテキストのみ
                 onTap: () {
                   _showEventDetails(event);
                 },
@@ -87,7 +88,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       backgroundColor: Colors.transparent, // 背景を透明にして角丸を見せる
       builder: (context) {
         return Container(
-          height: MediaQuery.of(context).size.height * 0.75, // 画面の75%の高さ
+          // 画面の高さの75%まで広げる
+          height: MediaQuery.of(context).size.height * 0.75,
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -104,15 +106,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       height: 200,
                       width: double.infinity,
                       color: Colors.grey.shade200,
+                      // 画像URLがある場合は表示、なければアイコン
                       child: event.eventImage.isNotEmpty
                           ? Image.network(
                               event.eventImage,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                return const Icon(Icons.broken_image, size: 50, color: Colors.grey);
+                                return Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                                    Text('No Image', style: TextStyle(color: Colors.grey)),
+                                  ],
+                                );
                               },
                             )
-                          : const Icon(Icons.image, size: 50, color: Colors.grey),
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.image, size: 40, color: Colors.grey),
+                                Text('No Image', style: TextStyle(color: Colors.grey)),
+                              ],
+                            ),
                     ),
                   ),
                   // 閉じるボタン
@@ -141,14 +156,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: Colors.orange.shade50, 
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.blue.shade200),
+                          border: Border.all(color: Colors.orange.shade200),
                         ),
                         child: Text(
-                          event.categoryId.isNotEmpty ? event.categoryId : 'No Category',
+                          event.categoryId.isNotEmpty ? event.categoryId : '未分類',
                           style: TextStyle(
-                            color: Colors.blue.shade800,
+                            color: Colors.orange.shade800,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -169,7 +184,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       _buildInfoRow(Icons.access_time, '日時', event.eventTime),
                       const SizedBox(height: 16),
 
-                      // 住所
+                      // 住所 (新規追加)
                       _buildInfoRow(Icons.location_on_outlined, '場所', 
                         event.address.isNotEmpty ? event.address : '住所情報なし'
                       ),
