@@ -22,7 +22,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
 
       body: Column(
         children: [
-          // 🔹 上部グラデーションヘッダー（UserProfileとトーンを合わせる）
+          // 🔹 上部グラデーションヘッダー
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
@@ -43,7 +43,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
 
-                // 🔍 検索バー（白いカード）
+                // 検索バー
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
@@ -77,7 +77,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
             ),
           ),
 
-          // ▼▼▼ タイトル（中央配置に変更） ▼▼▼
+          // タイトル
           Padding(
             padding: const EdgeInsets.only(top: 20),
             child: Center(
@@ -85,17 +85,16 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                 "レビュー履歴",
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.w600, // 太すぎないモダンな太さ
+                  fontWeight: FontWeight.w600,
                   color: Colors.black87,
-                  letterSpacing: 0.5, // 少しスペーシングで洗練感
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
           ),
-          // ▲▲▲ タイトルここまで ▲▲▲
 
 
-          // 🔹 下側コンテンツ（白いカードの中にタブ・日付・リストをまとめる）
+          // 🔹 下側コンテンツ
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -139,7 +138,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
 
                     const SizedBox(height: 12),
 
-                    // ● 日付フィルター（タップでスクロールPicker）
+                    // ● 日付フィルター
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -176,7 +175,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                       ),
                     ),
 
-                    // ● レビューリスト（ListView → shrinkWrapで中に表示）
+                    // ● レビューリスト
                     ListView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -194,18 +193,15 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
         ],
       ),
 
-      // ● 下の丸いナビバー（機能そのまま）
       bottomNavigationBar: CustomBottomBar(
         onMapTap: () {
-          Navigator.pop(context); // 戻る（マップへ）
+          Navigator.pop(context);
         },
       ),
     );
   }
 
-  // -----------------------------
-  // 🔵 タブボタン
-  // -----------------------------
+  // タブボタン
   Widget _buildTabButton(int index, String label) {
     bool isSelected = index == selectedTab;
     return GestureDetector(
@@ -232,18 +228,14 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
     );
   }
 
-  // -----------------------------
-  // 🔵 日付フォーマット
-  // -----------------------------
+  // 日付フォーマット
   String _formatDate(DateTime d) {
     final mm = d.month.toString().padLeft(2, '0');
     final dd = d.day.toString().padLeft(2, '0');
     return "${d.year}/$mm/$dd";
   }
 
-  // -----------------------------
-  // 🔵 日付ボックス（タップ可能）
-  // -----------------------------
+  // 日付ボックス
   Widget _dateBox(String text, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -269,9 +261,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
     );
   }
 
-  // -----------------------------
-  // 🔵 カスタムスクロールPicker（年/月/日だけ・カレンダー無し）
-  // -----------------------------
+  // カスタムスクロール
   void _showDatePicker(BuildContext context, bool isStart) {
     DateTime now = DateTime.now();
     int year = now.year;
@@ -381,9 +371,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
     );
   }
 
-  // -----------------------------
-  // 🔵 レビューカード（UIだけ柔らかく）
-  // -----------------------------
+  // レビューカード
   Widget _reviewCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),

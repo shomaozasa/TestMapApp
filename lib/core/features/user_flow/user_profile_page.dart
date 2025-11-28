@@ -27,7 +27,7 @@ class UserProfilePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ✨ 上の淡い青背景（ヘッダー）
+            // ヘッダー(仮)
             Container(
               height: 120,
               width: double.infinity,
@@ -62,7 +62,7 @@ class UserProfilePage extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // 🔹 あなたの活動
+            // あなたの活動
             _menuSection(
               title: "あなたの活動",
               items: [
@@ -85,7 +85,7 @@ class UserProfilePage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // 🔹 設定
+            // 設定
             _menuSection(
               title: "設定",
               items: [
@@ -129,10 +129,10 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
-  // 🔹 アイテム1行（タップ可能版）
+  // アイテム
   Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
     return InkWell(
-      onTap: onTap, // ← ここで onTap が使える！
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
