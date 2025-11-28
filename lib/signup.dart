@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'map_user.dart';
-import 'login.dart';
+import 'features/user_flow/presentation/screens/user_home_screen.dart';
+import 'login.dart' hide UserHomeScreen;
 
 // -------------------- サインアップ画面 --------------------
 class SignUpScreen extends StatelessWidget {
@@ -342,7 +342,7 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
   Future<void> _skipRegister() async {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const MyApp()),
+      MaterialPageRoute(builder: (context) => const UserHomeScreen()),
     );
   }
 

@@ -46,10 +46,9 @@ dependencies:
   analytics: ^2.0.3
   firebase_auth: ^6.1.2
   firebase_app_check: ^0.4.1+2
-  firebase_auth: ^6.1.2
-  cloud_firestore: ^6.1.0
-  firebase_storage: ^13.0.4       # アイコン画像を保存するため
-  image_picker: ^0.8.7+4          # モバイル画像ピッカー
+
+
+
 
 
 dev_dependencies:
