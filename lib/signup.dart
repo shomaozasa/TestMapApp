@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'map_user.dart';
 import 'login.dart';
 
 // -------------------- サインアップ画面 --------------------
@@ -17,14 +18,18 @@ class SignUpScreen extends StatelessWidget {
         title: Text('$userTypeで登録を始めます'),
         content: const Text('よろしいですか？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => UserTypeRegisterScreen(userType: userType),
+                  builder: (context) =>
+                      UserTypeRegisterScreen(userType: userType),
                 ),
               );
             },
@@ -44,8 +49,10 @@ class SignUpScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('どちらで始めますか？',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              'どちらで始めますか？',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 40),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -61,7 +68,11 @@ class SignUpScreen extends StatelessWidget {
   }
 
   // 丸ボタン＋ラベルの共通関数
-  Widget _buildUserTypeButton(BuildContext context, String userType, Color color) {
+  Widget _buildUserTypeButton(
+    BuildContext context,
+    String userType,
+    Color color,
+  ) {
     return Column(
       children: [
         Material(
@@ -110,7 +121,8 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
   final TextEditingController userNameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   // 事業者用
   final TextEditingController adminNameController = TextEditingController();
@@ -125,7 +137,9 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+    );
     if (pickedFile != null) setState(() => _iconImage = File(pickedFile.path));
   }
 
@@ -137,7 +151,9 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
           radius: 50,
           backgroundColor: Colors.grey.shade300,
           backgroundImage: _iconImage != null ? FileImage(_iconImage!) : null,
-          child: _iconImage == null ? const Icon(Icons.add_a_photo, size: 40, color: Colors.white) : null,
+          child: _iconImage == null
+              ? const Icon(Icons.add_a_photo, size: 40, color: Colors.white)
+              : null,
         ),
       ),
     );
@@ -163,14 +179,16 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
           controller: passwordController,
           decoration: const InputDecoration(labelText: 'パスワード(8文字以上)'),
           obscureText: true,
-          validator: (v) => v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
+          validator: (v) =>
+              v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
         ),
         const SizedBox(height: 16),
         TextFormField(
           controller: confirmPasswordController,
           decoration: const InputDecoration(labelText: 'パスワード確認'),
           obscureText: true,
-          validator: (v) => v != passwordController.text ? 'パスワードが一致しません' : null,
+          validator: (v) =>
+              v != passwordController.text ? 'パスワードが一致しません' : null,
         ),
       ],
     );
@@ -202,14 +220,16 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
           controller: passwordController,
           decoration: const InputDecoration(labelText: 'パスワード(8文字以上)'),
           obscureText: true,
-          validator: (v) => v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
+          validator: (v) =>
+              v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
         ),
         const SizedBox(height: 16),
         TextFormField(
           controller: confirmPasswordController,
           decoration: const InputDecoration(labelText: 'パスワード確認'),
           obscureText: true,
-          validator: (v) => v != passwordController.text ? 'パスワードが一致しません' : null,
+          validator: (v) =>
+              v != passwordController.text ? 'パスワードが一致しません' : null,
         ),
         const SizedBox(height: 16),
         TextFormField(
@@ -313,8 +333,17 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('登録失敗: ${e.message}')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('登録失敗: ${e.message}')));
     }
+  }
+
+  Future<void> _skipRegister() async {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const MyApp()),
+    );
   }
 
   @override
@@ -329,13 +358,27 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
             children: [
               _buildIconPicker(),
               const SizedBox(height: 24),
-              widget.userType == '利用者' ? _buildUserForm() : _buildBusinessForm(),
+              widget.userType == '利用者'
+                  ? _buildUserForm()
+                  : _buildBusinessForm(),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _register,
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
                 child: const Text('登録'),
               ),
+              const SizedBox(height: 50),
+              widget.userType == '利用者'
+                  ? ElevatedButton(
+                      onPressed: _skipRegister,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      child: const Text('登録をスキップ'),
+                    )
+                  : const SizedBox(height: 0),
             ],
           ),
         ),
@@ -351,12 +394,16 @@ class BusinessPendingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final docStream = FirebaseFirestore.instance.collection('businesses').doc(uid).snapshots();
+    final docStream = FirebaseFirestore.instance
+        .collection('businesses')
+        .doc(uid)
+        .snapshots();
 
     return StreamBuilder<DocumentSnapshot>(
       stream: docStream,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final isAuth = data['is_auth'] ?? false;
 
@@ -379,13 +426,17 @@ class BusinessPendingScreen extends StatelessWidget {
                 children: const [
                   Icon(Icons.lock, size: 80, color: Colors.orange),
                   SizedBox(height: 24),
-                  Text('🔒 アカウント認証待ち',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text(
+                    '🔒 アカウント認証待ち',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                   SizedBox(height: 16),
-                  Text('管理者があなたの事業者アカウントを確認しています。\n認証が完了すると自動で開始できます。',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16)),
+                  Text(
+                    '管理者があなたの事業者アカウントを確認しています。\n認証が完了すると自動で開始できます。',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ],
               ),
             ),
