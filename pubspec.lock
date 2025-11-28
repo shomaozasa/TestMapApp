@@ -318,6 +318,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.30"
+  flutter_rating_bar:
+    dependency: "direct main"
+    description:
+      name: flutter_rating_bar
+      sha256: d2af03469eac832c591a1eba47c91ecc871fe5708e69967073c043b2d775ed93
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.1"
   flutter_test:
     dependency: transitive
     description: flutter
@@ -480,6 +488,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+      sha256: b6951e25b795d053a6ba03af5f710069c99349de9341af95155d52665cb4607c
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.9"
   image_picker_android:
     dependency: transitive
     description:
@@ -496,6 +508,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.0"
+      sha256: "869fe8a64771b7afbc99fc433a5f7be2fea4d1cb3d7c11a48b6b579eb9c797f0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
   image_picker_ios:
     dependency: transitive
     description:
@@ -561,6 +577,7 @@ packages:
     source: hosted
     version: "3.0.2"
   logger:
+  lints:
     dependency: transitive
     description:
       name: logger
@@ -592,6 +609,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
+    version: "1.16.0"
   mime:
     dependency: transitive
     description:
@@ -600,6 +618,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+      sha256: "801fd0b26f14a4a58ccb09d5892c3fbdeff209594300a542492cf13fba9d247a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.6"
   package_info_plus:
     dependency: transitive
     description:
@@ -709,6 +731,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.7"
+      sha256: "522f00f556e73044315fa4585ec3270f1808a4b186c936e612cab0b565ff1e00"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.6"
   typed_data:
     dependency: transitive
     description:
