@@ -21,74 +21,190 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     zoom: 14.5,
   );
 
+  // ★ 選択中のイベントを保持する変数
+  EventModel? _selectedEvent;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベントマップ（利用者）'),
       ),
-      body: StreamBuilder<List<EventModel>>(
-        stream: _firestoreService.getEventsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('エラーが発生しました: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return _buildGoogleMap(Set<Marker>()); 
-          }
+      body: Stack(
+        children: [
+          // --- 1. Google Map ---
+          StreamBuilder<List<EventModel>>(
+            stream: _firestoreService.getEventsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              // エラーや空データの処理は簡略化
+              final List<EventModel> events = snapshot.data ?? [];
+              
+              final Set<Marker> markers = events.map((event) {
+                return Marker(
+                  markerId: MarkerId(event.id),
+                  position: LatLng(event.location.latitude, event.location.longitude),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                  // ★ InfoWindowは使わず、onTapで状態を更新
+                  onTap: () {
+                    setState(() {
+                      _selectedEvent = event;
+                    });
+                  },
+                );
+              }).toSet();
 
-          final List<EventModel> events = snapshot.data!;
-          
-          // イベントリストからマーカーセットを生成
-          final Set<Marker> markers = events.map((event) {
-            return Marker(
-              markerId: MarkerId(event.id),
-              position: LatLng(event.location.latitude, event.location.longitude),
-              // カテゴリによってピンの色を変えることも可能（今回は赤で統一）
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-              infoWindow: InfoWindow(
-                title: event.eventName,
-                snippet: 'タップして詳細を見る', // ここに画像は出せないのでテキストのみ
-                onTap: () {
-                  _showEventDetails(event);
+              return GoogleMap(
+                mapType: MapType.normal,
+                initialCameraPosition: _kTenjin,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: true,
+                onMapCreated: (GoogleMapController controller) {
+                  if (!_controller.isCompleted) {
+                    _controller.complete(controller);
+                  }
                 },
-              ),
-            );
-          }).toSet();
+                // マップの背景をタップしたら選択解除
+                onTap: (_) {
+                  if (_selectedEvent != null) {
+                    setState(() {
+                      _selectedEvent = null;
+                    });
+                  }
+                },
+                markers: markers,
+                // カードが表示されている時は、Googleロゴなどが隠れないようパディング
+                padding: EdgeInsets.only(
+                  bottom: _selectedEvent != null ? 260 : 0, 
+                ),
+              );
+            },
+          ),
 
-          return _buildGoogleMap(markers);
-        },
+          // --- 2. イベント詳細カード (オーバーレイ) ---
+          if (_selectedEvent != null)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: _buildEventCard(_selectedEvent!),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildGoogleMap(Set<Marker> markers) {
-    return GoogleMap(
-      mapType: MapType.normal,
-      initialCameraPosition: _kTenjin,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      onMapCreated: (GoogleMapController controller) {
-        if (!_controller.isCompleted) {
-          _controller.complete(controller);
-        }
+  /// ★ マップ上に表示するイベント詳細カード
+  Widget _buildEventCard(EventModel event) {
+    return GestureDetector(
+      onTap: () {
+        // カード全体をタップしたら、詳細ボトムシートを開く
+        _showEventDetails(event);
       },
-      markers: markers,
+      child: Container(
+        height: 140, // カードの高さ
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // --- 左側：画像 ---
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              child: SizedBox(
+                width: 120,
+                height: double.infinity,
+                child: event.eventImage.isNotEmpty
+                    ? Image.network(
+                        event.eventImage,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, _) => 
+                            Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
+                      )
+                    : Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      ),
+              ),
+            ),
+            
+            // --- 右側：情報 ---
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // カテゴリ
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        event.categoryId.isNotEmpty ? event.categoryId : '未分類',
+                        style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // イベント名
+                    Text(
+                      event.eventName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    // 時間
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 14, color: Colors.black54),
+                        const SizedBox(width: 4),
+                        Text(
+                          event.eventTime,
+                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // 詳細を見るリンク
+                    const Align(
+                      alignment: Alignment.bottomRight,
+                      child: Text(
+                        '詳細を見る >',
+                        style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  /// ★ イベント詳細をリッチに表示するボトムシート
+  /// ★ 詳細ボトムシート (前回と同じ)
   void _showEventDetails(EventModel event) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // 画面の高さに合わせて拡張可能に
-      backgroundColor: Colors.transparent, // 背景を透明にして角丸を見せる
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          // 画面の高さの75%まで広げる
           height: MediaQuery.of(context).size.height * 0.75,
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -97,7 +213,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- 1. ヘッダー画像エリア ---
+              // (ヘッダー画像)
               Stack(
                 children: [
                   ClipRRect(
@@ -106,31 +222,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       height: 200,
                       width: double.infinity,
                       color: Colors.grey.shade200,
-                      // 画像URLがある場合は表示、なければアイコン
                       child: event.eventImage.isNotEmpty
-                          ? Image.network(
-                              event.eventImage,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                                    Text('No Image', style: TextStyle(color: Colors.grey)),
-                                  ],
-                                );
-                              },
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.image, size: 40, color: Colors.grey),
-                                Text('No Image', style: TextStyle(color: Colors.grey)),
-                              ],
-                            ),
+                          ? Image.network(event.eventImage, fit: BoxFit.cover)
+                          : const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
                     ),
                   ),
-                  // 閉じるボタン
                   Positioned(
                     top: 10,
                     right: 10,
@@ -144,8 +240,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                 ],
               ),
-
-              // --- 2. 詳細情報エリア (スクロール可能) ---
+              // (詳細情報)
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
@@ -162,53 +257,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         ),
                         child: Text(
                           event.categoryId.isNotEmpty ? event.categoryId : '未分類',
-                          style: TextStyle(
-                            color: Colors.orange.shade800,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // イベント名
-                      Text(
-                        event.eventName,
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
+                      Text(event.eventName, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 20),
-                      
-                      // 開催時間
                       _buildInfoRow(Icons.access_time, '日時', event.eventTime),
                       const SizedBox(height: 16),
-
-                      // 住所 (新規追加)
-                      _buildInfoRow(Icons.location_on_outlined, '場所', 
-                        event.address.isNotEmpty ? event.address : '住所情報なし'
-                      ),
-                      
+                      _buildInfoRow(Icons.location_on_outlined, '場所', event.address.isNotEmpty ? event.address : '住所情報なし'),
                       const Divider(height: 40),
-
-                      // 詳細説明
-                      Text(
-                        '詳細情報',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
+                      Text('詳細情報', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      Text(
-                        event.description.isNotEmpty
-                            ? event.description
-                            : '詳細情報はありません。',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.5,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      
+                      Text(event.description.isNotEmpty ? event.description : '詳細情報はありません。', style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5)),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -221,7 +282,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  /// 情報行を作成するヘルパーメソッド
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,22 +292,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
-              ),
+              Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87)),
             ],
           ),
         ),
