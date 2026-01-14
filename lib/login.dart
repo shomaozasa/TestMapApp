@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'features/user_flow/presentation/screens/user_home_screen.dart';
+import 'features/business_flow/presentation/screens/business_home_screen.dart';
 
 // -------------------- ログインフォーム --------------------
 class LoginScreen extends StatefulWidget {
@@ -277,13 +278,13 @@ class BusinessAuthPendingScreen extends StatelessWidget {
 //   }
 // }
 
-class BusinessHomeScreen extends StatelessWidget {
-  const BusinessHomeScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('事業者ホーム')),
-      body: const Center(child: Text('事業者向けホーム画面です')),
-    );
-  }
-}
+// class BusinessHomeScreen extends StatelessWidget {
+//   const BusinessHomeScreen({super.key});
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('事業者ホーム')),
+//       body: const Center(child: Text('事業者向けホーム画面です')),
+//     );
+//   }
+// }
