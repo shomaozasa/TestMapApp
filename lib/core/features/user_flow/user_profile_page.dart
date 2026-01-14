@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_map_app/core/features/user_flow/review_history_page.dart';
+import 'package:google_map_app/core/features/user_flow/favorite_page.dart';
+import 'package:google_map_app/core/features/user_flow/notification_settings_page.dart';
+import 'package:google_map_app/core/features/user_flow/account_settings_page.dart';
 
 class UserProfilePage extends StatelessWidget {
   const UserProfilePage({Key? key}) : super(key: key);
@@ -55,10 +58,10 @@ class UserProfilePage extends StatelessWidget {
               "sample user",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            TextButton(
-              onPressed: () {},
-              child: const Text("編集"),
-            ),
+            // TextButton(
+            //   onPressed: () {},
+            //   child: const Text("編集"),
+            // ),
 
             const SizedBox(height: 10),
 
@@ -66,7 +69,18 @@ class UserProfilePage extends StatelessWidget {
             _menuSection(
               title: "あなたの活動",
               items: [
-                _menuItem(Icons.favorite_border, "お気に入り"),
+                _menuItem(
+                  Icons.favorite_border,
+                  "お気に入り",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FavoriteListPage(),
+                      ),
+                    );
+                  },
+                ),
                 _menuItem(
                   Icons.reviews,
                   "投稿したレビュー",
@@ -89,8 +103,30 @@ class UserProfilePage extends StatelessWidget {
             _menuSection(
               title: "設定",
               items: [
-                _menuItem(Icons.person, "アカウント設定"),
-                _menuItem(Icons.notifications, "通知設定"),
+                _menuItem(
+                  Icons.person_outline,
+                  "アカウント設定",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AccountSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+                _menuItem(
+                  Icons.notifications_none,
+                  "通知設定",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],

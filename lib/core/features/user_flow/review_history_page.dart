@@ -18,31 +18,29 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F0F8),
+      backgroundColor: const Color(0xFFF4F8FB),
 
       body: Column(
         children: [
-          // 🔹 上部グラデーションヘッダー
+          // ===== 上部グラデーションヘッダー =====
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.blue[200]!,
-                  Colors.blue[100]!,
+                  Color(0xFFB3E5FC),
+                  Color(0xFFE1F5FE),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(20),
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(24),
               ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 // 検索バー
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -60,7 +58,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                   child: Row(
                     children: const [
                       Icon(Icons.search, color: Colors.grey),
-                      SizedBox(width: 5),
+                      SizedBox(width: 6),
                       Expanded(
                         child: TextField(
                           decoration: InputDecoration(
@@ -77,32 +75,30 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
             ),
           ),
 
-          // タイトル
-          Padding(
-            padding: const EdgeInsets.only(top: 20),
-            child: Center(
-              child: Text(
-                "レビュー履歴",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                  letterSpacing: 0.5,
-                ),
+          // ===== タイトル（検索と表示条件の間）=====
+          const SizedBox(height: 18),
+          const Center(
+            child: Text(
+              "レビュー履歴",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: Colors.black87,
               ),
             ),
           ),
+          const SizedBox(height: 16),
 
-
-          // 🔹 下側コンテンツ
+          // ===== 下側コンテンツ =====
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   boxShadow: const [
                     BoxShadow(
                       color: Colors.black12,
@@ -114,7 +110,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ラベル
+                    // 表示条件ラベル
                     const Padding(
                       padding: EdgeInsets.only(left: 4, bottom: 8),
                       child: Text(
@@ -126,7 +122,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                       ),
                     ),
 
-                    // ● タブ選択（最近 / カテゴリ / 店舗）
+                    // ===== タブ =====
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -136,9 +132,9 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                       ],
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
-                    // ● 日付フィルター
+                    // ===== 日付フィルター =====
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -160,9 +156,8 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                       ],
                     ),
 
-                    const SizedBox(height: 16),
-
-                    const Divider(height: 24),
+                    const SizedBox(height: 18),
+                    const Divider(),
 
                     const Padding(
                       padding: EdgeInsets.only(left: 4, bottom: 8),
@@ -175,7 +170,7 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
                       ),
                     ),
 
-                    // ● レビューリスト
+                    // ===== レビューリスト =====
                     ListView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -194,33 +189,27 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
       ),
 
       bottomNavigationBar: CustomBottomBar(
-        onMapTap: () {
-          Navigator.pop(context);
-        },
+        onMapTap: () => Navigator.pop(context),
       ),
     );
   }
 
-  // タブボタン
+  // ===== タブボタン =====
   Widget _buildTabButton(int index, String label) {
-    bool isSelected = index == selectedTab;
+    final isSelected = index == selectedTab;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedTab = index;
-        });
-      },
+      onTap: () => setState(() => selectedTab = index),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[100] : Colors.grey[200],
-          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? Colors.lightBlue[100] : Colors.grey[200],
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.black : Colors.grey[600],
+            color: isSelected ? Colors.lightBlue[900] : Colors.grey[600],
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -228,43 +217,32 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
     );
   }
 
-  // 日付フォーマット
+  // ===== 日付フォーマット =====
   String _formatDate(DateTime d) {
-    final mm = d.month.toString().padLeft(2, '0');
-    final dd = d.day.toString().padLeft(2, '0');
-    return "${d.year}/$mm/$dd";
+    return "${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}";
   }
 
-  // 日付ボックス
+  // ===== 日付ボックス =====
   Widget _dateBox(String text, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: Colors.grey.shade300),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 3,
-              offset: Offset(0, 2),
-            )
-          ],
         ),
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 13),
-        ),
+        child: Text(text, style: const TextStyle(fontSize: 13)),
       ),
     );
   }
 
-  // カスタムスクロール
+  // ===== スクロール式日付ピッカー =====
   void _showDatePicker(BuildContext context, bool isStart) {
     DateTime now = DateTime.now();
     int year = now.year;
+
     List<int> years = List.generate(10, (i) => year - 5 + i);
     List<int> months = List.generate(12, (i) => i + 1);
     List<int> days = List.generate(31, (i) => i + 1);
@@ -283,84 +261,34 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
           height: 260,
           child: Column(
             children: [
-              // 上部ボタン
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      child: const Text("キャンセル"),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    TextButton(
-                      child: const Text("OK"),
-                      onPressed: () {
-                        setState(() {
-                          final picked =
-                              DateTime(selectedYear, selectedMonth, selectedDay);
-                          if (isStart) {
-                            selectedStartDate = picked;
-                          } else {
-                            selectedEndDate = picked;
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    child: const Text("キャンセル"),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  TextButton(
+                    child: const Text("OK"),
+                    onPressed: () {
+                      setState(() {
+                        final picked =
+                            DateTime(selectedYear, selectedMonth, selectedDay);
+                        isStart
+                            ? selectedStartDate = picked
+                            : selectedEndDate = picked;
+                      });
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
-
               Expanded(
                 child: Row(
                   children: [
-                    // 年
-                    Expanded(
-                      child: CupertinoPicker(
-                        itemExtent: 32,
-                        scrollController: FixedExtentScrollController(
-                          initialItem: years.indexOf(selectedYear),
-                        ),
-                        onSelectedItemChanged: (i) {
-                          selectedYear = years[i];
-                        },
-                        children: years
-                            .map((y) => Center(child: Text("$y 年")))
-                            .toList(),
-                      ),
-                    ),
-                    // 月
-                    Expanded(
-                      child: CupertinoPicker(
-                        itemExtent: 32,
-                        scrollController: FixedExtentScrollController(
-                          initialItem: selectedMonth - 1,
-                        ),
-                        onSelectedItemChanged: (i) {
-                          selectedMonth = months[i];
-                        },
-                        children: months
-                            .map((m) => Center(child: Text("$m 月")))
-                            .toList(),
-                      ),
-                    ),
-                    // 日
-                    Expanded(
-                      child: CupertinoPicker(
-                        itemExtent: 32,
-                        scrollController: FixedExtentScrollController(
-                          initialItem: selectedDay - 1,
-                        ),
-                        onSelectedItemChanged: (i) {
-                          selectedDay = days[i];
-                        },
-                        children: days
-                            .map((d) => Center(child: Text("$d 日")))
-                            .toList(),
-                      ),
-                    ),
+                    _picker(years, (i) => selectedYear = years[i], "年"),
+                    _picker(months, (i) => selectedMonth = months[i], "月"),
+                    _picker(days, (i) => selectedDay = days[i], "日"),
                   ],
                 ),
               ),
@@ -371,7 +299,17 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
     );
   }
 
-  // レビューカード
+  Widget _picker(List<int> list, Function(int) onChanged, String suffix) {
+    return Expanded(
+      child: CupertinoPicker(
+        itemExtent: 32,
+        onSelectedItemChanged: onChanged,
+        children: list.map((e) => Center(child: Text("$e $suffix"))).toList(),
+      ),
+    );
+  }
+
+  // ===== レビューカード =====
   Widget _reviewCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -389,28 +327,18 @@ class _ReviewHistoryPageState extends State<ReviewHistoryPage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 上：日付 + 星
+        children: const [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                "2025/10/06",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "★★★★★",
-                style: TextStyle(color: Colors.orange),
-              ),
+            children: [
+              Text("2025/10/06", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("★★★★★", style: TextStyle(color: Colors.orange)),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
+          Text("店舗名", style: TextStyle(fontSize: 13, color: Colors.grey)),
+          SizedBox(height: 10),
           Text(
-            "店舗名",
-            style: TextStyle(color: Colors.grey[700], fontSize: 13),
-          ),
-          const SizedBox(height: 10),
-          const Text(
             "レビュー内容\nレビュー内容\nレビュー内容",
             style: TextStyle(fontSize: 13),
           ),

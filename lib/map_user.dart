@@ -1,24 +1,30 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+// void main() {
+//   runApp(const MyApp());
+// }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+// class MyApp extends StatelessWidget {
+//   const MyApp({Key? key}) : super(key: key);
+
+// class EventDetailScreen extends StatefulWidget {
+//   const EventDetailScreen({Key? key}) : super(key: key);
+
+//   @override
+//   State<EventDetailScreen> createState() => _EventDetailScreenState();
+// }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'イベント詳細',
       theme: ThemeData(
-        primarySwatch: Colors.orange,
+        primarySwatch: Colors.lightBlue,
         scaffoldBackgroundColor: Colors.white,
       ),
       home: const EventDetailScreen(),
     );
   }
-}
 
 // イベントデータモデル
 class Event {
@@ -210,7 +216,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.lightBlue,
             leading: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -403,7 +409,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       _buildInfoRow(
                         Icons.access_time,
                         '${event.startTime} - ${event.endTime}',
-                        Colors.orange,
+                        Colors.lightBlue,
                       ),
                       const SizedBox(height: 8),
                       // 場所
@@ -515,8 +521,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   label: const Text('共有'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Colors.orange,
-                    side: const BorderSide(color: Colors.orange, width: 2),
+                    foregroundColor: Colors.lightBlue,
+                    side: const BorderSide(color: Colors.lightBlue, width: 2),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -539,7 +545,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   label: const Text('ルート案内'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.orange,
+                    backgroundColor: Colors.lightBlue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -584,7 +590,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: Colors.lightBlue.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -641,7 +647,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: Colors.orange,
+              foregroundColor: Colors.lightBlue,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -710,7 +716,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   review.userName[0],
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange,
+                    color: Colors.lightBlue,
                   ),
                 ),
               ),
