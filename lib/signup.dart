@@ -11,6 +11,13 @@ import 'login.dart' hide UserHomeScreen;
 class SignUpScreen extends StatelessWidget {
   const SignUpScreen({super.key});
 
+  Future<void> _skipRegister(BuildContext context) async {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const UserHomeScreen()),
+    );
+  }
+
   void _showConfirmationDialog(BuildContext context, String userType) {
     showDialog(
       context: context,
@@ -60,6 +67,14 @@ class SignUpScreen extends StatelessWidget {
                 _buildUserTypeButton(context, '事業者', Colors.orange),
                 _buildUserTypeButton(context, '利用者', Colors.blue),
               ],
+            ),
+            const SizedBox(height: 50),
+            ElevatedButton(
+              onPressed: () => _skipRegister(context),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: const Text('登録をスキップ'),
             ),
           ],
         ),
@@ -339,12 +354,12 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
     }
   }
 
-  Future<void> _skipRegister() async {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const UserHomeScreen()),
-    );
-  }
+  // Future<void> _skipRegister() async {
+  //   Navigator.pushReplacement(
+  //     context,
+  //     MaterialPageRoute(builder: (context) => const UserHomeScreen()),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -370,15 +385,15 @@ class _UserTypeRegisterScreenState extends State<UserTypeRegisterScreen> {
                 child: const Text('登録'),
               ),
               const SizedBox(height: 50),
-              widget.userType == '利用者'
-                  ? ElevatedButton(
-                      onPressed: _skipRegister,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text('登録をスキップ'),
-                    )
-                  : const SizedBox(height: 0),
+              // widget.userType == '利用者'
+              //     ? ElevatedButton(
+              //         onPressed: _skipRegister,
+              //         style: ElevatedButton.styleFrom(
+              //           minimumSize: const Size(double.infinity, 50),
+              //         ),
+              //         child: const Text('登録をスキップ'),
+              //       )
+              //     : const SizedBox(height: 0),
             ],
           ),
         ),
