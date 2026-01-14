@@ -29,6 +29,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベントマップ（利用者）'),
+        automaticallyImplyLeading: false,
       ),
       body: Stack(
         children: [
@@ -41,12 +42,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               }
               // エラーや空データの処理は簡略化
               final List<EventModel> events = snapshot.data ?? [];
-              
+
               final Set<Marker> markers = events.map((event) {
                 return Marker(
                   markerId: MarkerId(event.id),
-                  position: LatLng(event.location.latitude, event.location.longitude),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                  position: LatLng(
+                    event.location.latitude,
+                    event.location.longitude,
+                  ),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
                   // ★ InfoWindowは使わず、onTapで状態を更新
                   onTap: () {
                     setState(() {
@@ -77,7 +83,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 markers: markers,
                 // カードが表示されている時は、Googleロゴなどが隠れないようパディング
                 padding: EdgeInsets.only(
-                  bottom: _selectedEvent != null ? 260 : 0, 
+                  bottom: _selectedEvent != null ? 260 : 0,
                 ),
               );
             },
@@ -120,7 +126,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           children: [
             // --- 左側：画像 ---
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(16),
+              ),
               child: SizedBox(
                 width: 120,
                 height: double.infinity,
@@ -128,16 +136,25 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ? Image.network(
                         event.eventImage,
                         fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, _) => 
-                            Container(color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
+                        errorBuilder: (ctx, err, _) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                          ),
+                        ),
                       )
                     : Container(
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                        child: const Icon(
+                          Icons.image,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
                       ),
               ),
             ),
-            
+
             // --- 右側：情報 ---
             Expanded(
               child: Padding(
@@ -148,14 +165,21 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   children: [
                     // カテゴリ
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         event.categoryId.isNotEmpty ? event.categoryId : '未分類',
-                        style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -164,17 +188,27 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       event.eventName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     // 時間
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 14, color: Colors.black54),
+                        const Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Colors.black54,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           event.eventTime,
-                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
                         ),
                       ],
                     ),
@@ -184,7 +218,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       alignment: Alignment.bottomRight,
                       child: Text(
                         '詳細を見る >',
-                        style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -217,14 +255,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                     child: Container(
                       height: 200,
                       width: double.infinity,
                       color: Colors.grey.shade200,
                       child: event.eventImage.isNotEmpty
                           ? Image.network(event.eventImage, fit: BoxFit.cover)
-                          : const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
+                          : const Center(
+                              child: Icon(
+                                Icons.image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
                     ),
                   ),
                   Positioned(
@@ -249,27 +295,55 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     children: [
                       // カテゴリチップ
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50, 
+                          color: Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.orange.shade200),
                         ),
                         child: Text(
-                          event.categoryId.isNotEmpty ? event.categoryId : '未分類',
-                          style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12),
+                          event.categoryId.isNotEmpty
+                              ? event.categoryId
+                              : '未分類',
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Text(event.eventName, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        event.eventName,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 20),
                       _buildInfoRow(Icons.access_time, '日時', event.eventTime),
                       const SizedBox(height: 16),
-                      _buildInfoRow(Icons.location_on_outlined, '場所', event.address.isNotEmpty ? event.address : '住所情報なし'),
+                      _buildInfoRow(
+                        Icons.location_on_outlined,
+                        '場所',
+                        event.address.isNotEmpty ? event.address : '住所情報なし',
+                      ),
                       const Divider(height: 40),
-                      Text('詳細情報', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(
+                        '詳細情報',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 8),
-                      Text(event.description.isNotEmpty ? event.description : '詳細情報はありません。', style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5)),
+                      Text(
+                        event.description.isNotEmpty
+                            ? event.description
+                            : '詳細情報はありません。',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                      ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -292,9 +366,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
+              ),
             ],
           ),
         ),

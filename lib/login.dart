@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'features/user_flow/presentation/screens/user_home_screen.dart';
 
 // -------------------- ログインフォーム --------------------
 class LoginScreen extends StatefulWidget {
@@ -74,7 +75,9 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const BusinessAuthPendingScreen()),
+            MaterialPageRoute(
+              builder: (_) => const BusinessAuthPendingScreen(),
+            ),
           );
           return;
         }
@@ -94,9 +97,9 @@ class _LoginScreenState extends State<LoginScreen> {
         message: 'ユーザーデータが存在しません',
       );
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ログイン失敗: ${e.message}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ログイン失敗: ${e.message}')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -134,7 +137,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const PasswordResetScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const PasswordResetScreen(),
+                      ),
                     );
                   },
                   child: const Text('パスワードを忘れた場合'),
@@ -181,14 +186,14 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: emailController.text.trim(),
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('リセットメールを送信しました')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('リセットメールを送信しました')));
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('送信失敗: ${e.message}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('送信失敗: ${e.message}')));
     } finally {
       setState(() => _isSending = false);
     }
@@ -203,8 +208,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('登録済みメールアドレスを入力してください',
-                style: TextStyle(fontSize: 16)),
+            const Text('登録済みメールアドレスを入力してください', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
@@ -262,16 +266,16 @@ class BusinessAuthPendingScreen extends StatelessWidget {
 }
 
 // -------------------- ホーム画面 --------------------
-class UserHomeScreen extends StatelessWidget {
-  const UserHomeScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('利用者ホーム')),
-      body: const Center(child: Text('利用者向けホーム画面です')),
-    );
-  }
-}
+// class UserHomeScreen extends StatelessWidget {
+//   const UserHomeScreen({super.key});
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('利用者ホーム')),
+//       body: const Center(child: Text('利用者向けホーム画面です')),
+//     );
+//   }
+// }
 
 class BusinessHomeScreen extends StatelessWidget {
   const BusinessHomeScreen({super.key});
