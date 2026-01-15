@@ -25,7 +25,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   // 選択中のイベントを保持する変数
   EventModel? _selectedEvent;
-  
+
   // マップ用イベントリスト
   List<EventModel> _mapEvents = [];
   // お気に入りIDリスト
@@ -60,7 +60,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 _mapEvents = eventSnapshot.data!;
               }
               // エラーや空データの処理は簡略化
-              final List<EventModel> events = snapshot.data ?? [];
+              final List<EventModel> events = eventSnapshot.data ?? [];
 
               final Set<Marker> markers = events.map((event) {
                 return Marker(
@@ -93,9 +93,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     return Marker(
                       markerId: MarkerId(event.id),
                       position: LatLng(
-                          event.location.latitude, event.location.longitude),
+                        event.location.latitude,
+                        event.location.longitude,
+                      ),
                       icon: BitmapDescriptor.defaultMarkerWithHue(
-                          BitmapDescriptor.hueRed),
+                        BitmapDescriptor.hueRed,
+                      ),
                       onTap: () {
                         setState(() {
                           _selectedEvent = event;
@@ -129,11 +132,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                   );
                 },
-                markers: markers,
-                // カードが表示されている時は、Googleロゴなどが隠れないようパディング
-                padding: EdgeInsets.only(
-                  bottom: _selectedEvent != null ? 260 : 0,
-                ),
+                //     markers: markers,
+                //     // カードが表示されている時は、Googleロゴなどが隠れないようパディング
+                //     padding: EdgeInsets.only(
+                //       bottom: _selectedEvent != null ? 260 : 0,
+                //     ),
               );
             },
           ),
@@ -186,8 +189,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               children: [
                 // --- 左側：画像 ---
                 ClipRRect(
-                  borderRadius:
-                      const BorderRadius.horizontal(left: Radius.circular(16)),
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(16),
+                  ),
                   child: SizedBox(
                     width: 120,
                     height: double.infinity,
@@ -196,14 +200,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             event.eventImage,
                             fit: BoxFit.cover,
                             errorBuilder: (ctx, err, _) => Container(
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.broken_image,
-                                    color: Colors.grey)),
+                              color: Colors.grey.shade200,
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
+                            ),
                           )
                         : Container(
                             color: Colors.grey.shade200,
-                            child: const Icon(Icons.image,
-                                size: 40, color: Colors.grey),
+                            child: const Icon(
+                              Icons.image,
+                              size: 40,
+                              color: Colors.grey,
+                            ),
                           ),
                   ),
                 ),
@@ -218,7 +228,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.orange.shade50,
                             borderRadius: BorderRadius.circular(4),
@@ -228,9 +240,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                 ? event.categoryId
                                 : '未分類',
                             style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.orange.shade800,
-                                fontWeight: FontWeight.bold),
+                              fontSize: 10,
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -239,30 +252,38 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.access_time,
-                                size: 14, color: Colors.black54),
+                            const Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Colors.black54,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               event.eventTime,
                               style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54),
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
                             ),
                           ],
                         ),
                         const Spacer(),
-                        const Align(
+                        Align(
                           alignment: Alignment.bottomRight,
                           child: Text(
                             '詳細を見る >',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -313,49 +334,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // (ヘッダー画像)
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                    child: Container(
-                      height: 200,
-                      width: double.infinity,
-                      color: Colors.grey.shade200,
-                      child: event.eventImage.isNotEmpty
-                          ? Image.network(event.eventImage, fit: BoxFit.cover)
-                          : const Center(
-                              child: Icon(
-                                Icons.image,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                            ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.black.withOpacity(0.5),
-                      child: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                  ),
-                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -364,17 +342,25 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   Stack(
                     children: [
                       ClipRRect(
-                        borderRadius:
-                            const BorderRadius.vertical(top: Radius.circular(20)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
                         child: Container(
                           height: 200,
                           width: double.infinity,
                           color: Colors.grey.shade200,
                           child: event.eventImage.isNotEmpty
-                              ? Image.network(event.eventImage, fit: BoxFit.cover)
+                              ? Image.network(
+                                  event.eventImage,
+                                  fit: BoxFit.cover,
+                                )
                               : const Center(
-                                  child: Icon(Icons.image,
-                                      size: 50, color: Colors.grey)),
+                                  child: Icon(
+                                    Icons.image,
+                                    size: 50,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                         ),
                       ),
                       // 閉じるボタン
@@ -408,58 +394,58 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ),
                         ),
                       ),
-                      // カテゴリチップ
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Text(
-                          event.categoryId.isNotEmpty
-                              ? event.categoryId
-                              : '未分類',
-                          style: TextStyle(
-                            color: Colors.orange.shade800,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        event.eventName,
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildInfoRow(Icons.access_time, '日時', event.eventTime),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.location_on_outlined,
-                        '場所',
-                        event.address.isNotEmpty ? event.address : '住所情報なし',
-                      ),
-                      const Divider(height: 40),
-                      Text(
-                        '詳細情報',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        event.description.isNotEmpty
-                            ? event.description
-                            : '詳細情報はありません。',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(height: 1.5),
-                      ),
-                      const SizedBox(height: 40),
+                      //     // カテゴリチップ
+                      //     Container(
+                      //       padding: const EdgeInsets.symmetric(
+                      //         horizontal: 12,
+                      //         vertical: 6,
+                      //       ),
+                      //       decoration: BoxDecoration(
+                      //         color: Colors.orange.shade50,
+                      //         borderRadius: BorderRadius.circular(20),
+                      //         border: Border.all(color: Colors.orange.shade200),
+                      //       ),
+                      //       child: Text(
+                      //         event.categoryId.isNotEmpty
+                      //             ? event.categoryId
+                      //             : '未分類',
+                      //         style: TextStyle(
+                      //           color: Colors.orange.shade800,
+                      //           fontWeight: FontWeight.bold,
+                      //           fontSize: 12,
+                      //         ),
+                      //       ),
+                      //     ),
+                      //     const SizedBox(height: 12),
+                      // Text(
+                      //   event.eventName,
+                      //   style: Theme.of(context).textTheme.headlineMedium
+                      //       ?.copyWith(fontWeight: FontWeight.bold),
+                      // ),
+                      // const SizedBox(height: 20),
+                      // _buildInfoRow(Icons.access_time, '日時', event.eventTime),
+                      // const SizedBox(height: 16),
+                      // _buildInfoRow(
+                      //   Icons.location_on_outlined,
+                      //   '場所',
+                      //   event.address.isNotEmpty ? event.address : '住所情報なし',
+                      // ),
+                      // const Divider(height: 40),
+                      // Text(
+                      //   '詳細情報',
+                      //   style: Theme.of(context).textTheme.titleMedium
+                      //       ?.copyWith(fontWeight: FontWeight.bold),
+                      // ),
+                      // const SizedBox(height: 8),
+                      // Text(
+                      //   event.description.isNotEmpty
+                      //       ? event.description
+                      //       : '詳細情報はありません。',
+                      //   style: Theme.of(
+                      //     context,
+                      //   ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                      // ),
+                      //   const SizedBox(height: 40),
                     ],
                   ),
                   // (詳細情報)
@@ -471,7 +457,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(20),
@@ -482,42 +470,45 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                   ? event.categoryId
                                   : '未分類',
                               style: TextStyle(
-                                  color: Colors.orange.shade800,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12),
+                                color: Colors.orange.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text(event.eventName,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            event.eventName,
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 20),
                           _buildInfoRow(
-                              Icons.access_time, '日時', event.eventTime),
+                            Icons.access_time,
+                            '日時',
+                            event.eventTime,
+                          ),
                           const SizedBox(height: 16),
                           _buildInfoRow(
-                              Icons.location_on_outlined,
-                              '場所',
-                              event.address.isNotEmpty
-                                  ? event.address
-                                  : '住所情報なし'),
+                            Icons.location_on_outlined,
+                            '場所',
+                            event.address.isNotEmpty ? event.address : '住所情報なし',
+                          ),
                           const Divider(height: 40),
-                          Text('詳細情報',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            '詳細情報',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 8),
                           Text(
-                              event.description.isNotEmpty
-                                  ? event.description
-                                  : '詳細情報はありません。',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(height: 1.5)),
+                            event.description.isNotEmpty
+                                ? event.description
+                                : '詳細情報はありません。',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                          ),
                           const SizedBox(height: 40),
                         ],
                       ),
@@ -542,14 +533,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(fontSize: 16, color: Colors.black87)),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
+              ),
             ],
           ),
         ),
@@ -594,10 +590,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             },
           ),
           // ホーム (ダミー)
-          _buildCircleButton(
-            icon: null,
-            onPressed: () {},
-          ),
+          _buildCircleButton(icon: null, onPressed: () {}),
           // マイページ (ダミー)
           _buildCircleButton(
             icon: Icons.person_outline,
@@ -625,33 +618,16 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-                color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: icon != null
             ? Icon(icon, color: Colors.grey.shade700, size: 28)
             : null,
       ),
-    );
-  }
-}
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 16, color: Colors.black87),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
