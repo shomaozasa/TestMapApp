@@ -47,6 +47,10 @@ dependencies:
   firebase_auth: ^6.1.2
   firebase_app_check: ^0.4.1+2
 
+# 2. Flutterの設定（アイコンや画像など）
+# ★依存関係のブロックの外（ファイルの一番下）に書くのが正解です
+flutter:
+  uses-material-design: true
 
 
 
