@@ -48,6 +48,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベントマップ（利用者）'),
+        automaticallyImplyLeading: false,
       ),
       body: Stack(
         children: [
@@ -58,6 +59,27 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               if (eventSnapshot.hasData) {
                 _mapEvents = eventSnapshot.data!;
               }
+              // エラーや空データの処理は簡略化
+              final List<EventModel> events = snapshot.data ?? [];
+
+              final Set<Marker> markers = events.map((event) {
+                return Marker(
+                  markerId: MarkerId(event.id),
+                  position: LatLng(
+                    event.location.latitude,
+                    event.location.longitude,
+                  ),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
+                  // ★ InfoWindowは使わず、onTapで状態を更新
+                  onTap: () {
+                    setState(() {
+                      _selectedEvent = event;
+                    });
+                  },
+                );
+              }).toSet();
 
               // お気に入り情報を監視して重ねる
               return StreamBuilder<List<EventModel>>(
@@ -107,6 +129,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                   );
                 },
+                markers: markers,
+                // カードが表示されている時は、Googleロゴなどが隠れないようパディング
+                padding: EdgeInsets.only(
+                  bottom: _selectedEvent != null ? 260 : 0,
+                ),
               );
             },
           ),
@@ -286,6 +313,49 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // (ヘッダー画像)
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                    child: Container(
+                      height: 200,
+                      width: double.infinity,
+                      color: Colors.grey.shade200,
+                      child: event.eventImage.isNotEmpty
+                          ? Image.network(event.eventImage, fit: BoxFit.cover)
+                          : const Center(
+                              child: Icon(
+                                Icons.image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black.withOpacity(0.5),
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -338,6 +408,58 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ),
                         ),
                       ),
+                      // カテゴリチップ
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Text(
+                          event.categoryId.isNotEmpty
+                              ? event.categoryId
+                              : '未分類',
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        event.eventName,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildInfoRow(Icons.access_time, '日時', event.eventTime),
+                      const SizedBox(height: 16),
+                      _buildInfoRow(
+                        Icons.location_on_outlined,
+                        '場所',
+                        event.address.isNotEmpty ? event.address : '住所情報なし',
+                      ),
+                      const Divider(height: 40),
+                      Text(
+                        '詳細情報',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        event.description.isNotEmpty
+                            ? event.description
+                            : '詳細情報はありません。',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                      ),
+                      const SizedBox(height: 40),
                     ],
                   ),
                   // (詳細情報)
@@ -510,6 +632,26 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             ? Icon(icon, color: Colors.grey.shade700, size: 28)
             : null,
       ),
+    );
+  }
+}
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
