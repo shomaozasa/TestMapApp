@@ -168,7 +168,12 @@ final sampleEvent = Event(
 
 // イベント詳細画面
 class EventDetailScreen extends StatefulWidget {
-  const EventDetailScreen({Key? key}) : super(key: key);
+  final ScrollController? scrollController;
+
+  const EventDetailScreen({
+    Key? key,
+    this.scrollController,
+  }) : super(key: key);
 
   @override
   State<EventDetailScreen> createState() => _EventDetailScreenState();
@@ -211,6 +216,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     return Scaffold(
       body: CustomScrollView(
+        controller: widget.scrollController,
         slivers: [
           // アプリバー + 写真スライダー
           SliverAppBar(

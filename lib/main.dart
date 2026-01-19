@@ -260,24 +260,21 @@
 //     );
 //   }
 // }
-
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_map_app/map_user.dart';
 
 import 'package:google_map_app/core/features/user_flow/custom_bottom_bar.dart';
-import 'package:google_map_app/map_user.dart'; // EventDetailScreen
-import 'package:google_map_app/core/features/user_flow/user_profile_page.dart';
 
+/// =======================
+/// アプリ起点
+/// =======================
 void main() {
   runApp(const MyApp());
 }
 
-/// =======================
-/// アプリ
-/// =======================
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -285,9 +282,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Google Maps Demo',
-      theme: ThemeData(useMaterial3: true),
-      home: const MapScreen(),
+      home: MapScreen(),
     );
   }
 }
@@ -324,11 +319,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   late GoogleMapController _mapController;
 
-  String _searchText = '';
-  String _selectedCategory = 'すべて';
-  double _maxDistance = 500;
-
-  final List<MapEvent> _allEvents = [
+  final List<MapEvent> _events = [
     MapEvent(
       id: '1',
       title: '今だけ！の極旨クレープ販売',
@@ -336,30 +327,7 @@ class _MapScreenState extends State<MapScreen> {
       distance: 40,
       position: const LatLng(35.6812, 139.7671),
     ),
-    MapEvent(
-      id: '2',
-      title: '野菜直売セール',
-      category: 'セール',
-      distance: 120,
-      position: const LatLng(35.6830, 139.7700),
-    ),
-    MapEvent(
-      id: '3',
-      title: '親子パン作り体験',
-      category: '体験',
-      distance: 300,
-      position: const LatLng(35.6795, 139.7640),
-    ),
   ];
-
-  List<MapEvent> get _filteredEvents {
-    return _allEvents.where((e) {
-      return e.title.contains(_searchText) &&
-          (_selectedCategory == 'すべて' ||
-              e.category == _selectedCategory) &&
-          e.distance <= _maxDistance;
-    }).toList();
-  }
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(35.6812, 139.7671),
@@ -385,74 +353,28 @@ class _MapScreenState extends State<MapScreen> {
     } catch (_) {}
   }
 
-  Set<Marker> _buildMarkers() {
-    return _filteredEvents
-        .map(
-          (e) => Marker(
-            markerId: MarkerId(e.id),
-            position: e.position,
-            infoWindow: InfoWindow(title: e.title),
-          ),
-        )
-        .toSet();
-  }
-
-  /// =======================
-  /// UI
-  /// =======================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          /// 🗺 マップ（最下部まで）
+          /// 🗺 GoogleMap
           GoogleMap(
             onMapCreated: (c) => _mapController = c,
             initialCameraPosition: _initialPosition,
-            markers: _buildMarkers(),
+            markers: _events
+                .map(
+                  (e) => Marker(
+                    markerId: MarkerId(e.id),
+                    position: e.position,
+                  ),
+                )
+                .toSet(),
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
           ),
 
-          /// 🔍 検索バー
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 6),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        onChanged: (v) =>
-                            setState(() => _searchText = v),
-                        decoration: const InputDecoration(
-                          hintText: 'イベント・店舗を検索',
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.tune),
-                      onPressed: _openFilterSheet,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          /// 🟦 下カード
+          /// 🟦 下のイベントカード
           Positioned(
             left: 0,
             right: 0,
@@ -460,17 +382,12 @@ class _MapScreenState extends State<MapScreen> {
             height: 140,
             child: PageView.builder(
               controller: PageController(viewportFraction: 0.9),
-              itemCount: _filteredEvents.length,
+              itemCount: _events.length,
               itemBuilder: (context, index) {
-                final e = _filteredEvents[index];
+                final e = _events[index];
                 return GestureDetector(
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const EventDetailScreen(),
-                      ),
-                    );
+                    _showEventDetailSheet(context);
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -481,21 +398,13 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          /// ⬇ カスタムBottomBar
+          /// ⬇ BottomBar
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: CustomBottomBar(
               onMapTap: _moveToCurrentLocation,
-              onProfileTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const UserProfilePage(),
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -523,8 +432,7 @@ class _MapScreenState extends State<MapScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-              child: Text(e.category,
-                  style: const TextStyle(fontSize: 11)),
+              child: Text(e.category),
             ),
           ),
           const SizedBox(width: 12),
@@ -550,45 +458,111 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _openFilterSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButton<String>(
-                value: _selectedCategory,
-                isExpanded: true,
-                items: ['すべて', '飲食', 'セール', '体験']
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c,
-                        child: Text(c),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) =>
-                    setState(() => _selectedCategory = v!),
+  /// =======================
+  /// イベント詳細 BottomSheet
+  /// =======================
+void _showEventDetailSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.45,
+        minChildSize: 0.35,
+        maxChildSize: 0.95,
+        builder: (_, controller) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(24),
               ),
-              const SizedBox(height: 12),
-              Text('距離：${_maxDistance.toInt()}m以内'),
-              Slider(
-                min: 50,
-                max: 1000,
-                value: _maxDistance,
-                onChanged: (v) =>
-                    setState(() => _maxDistance = v),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+            ),
+            child: EventDetailScreen(
+              scrollController: controller,
+            ),
+          );
+        },
+      );
+    },
+  );
 }
+}
+
+// /// =======================
+// /// イベント詳細（Sheet用）
+// /// =======================
+// class EventDetailSheet extends StatelessWidget {
+//   final ScrollController scrollController;
+
+//   const EventDetailSheet({
+//     super.key,
+//     required this.scrollController,
+//   });
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return CustomScrollView(
+//       controller: scrollController,
+//       slivers: [
+//         /// スワイプバー
+//         SliverToBoxAdapter(
+//           child: Center(
+//             child: Container(
+//               width: 40,
+//               height: 4,
+//               margin: const EdgeInsets.only(top: 12, bottom: 12),
+//               decoration: BoxDecoration(
+//                 color: Colors.grey[400],
+//                 borderRadius: BorderRadius.circular(2),
+//               ),
+//             ),
+//           ),
+//         ),
+
+//         /// 写真
+//         SliverAppBar(
+//           automaticallyImplyLeading: false,
+//           expandedHeight: 240,
+//           pinned: true,
+//           backgroundColor: Colors.lightBlue,
+//           flexibleSpace: FlexibleSpaceBar(
+//             background: Image.network(
+//               'https://via.placeholder.com/400x300',
+//               fit: BoxFit.cover,
+//             ),
+//           ),
+//         ),
+
+//         /// 内容
+//         SliverToBoxAdapter(
+//           child: Padding(
+//             padding: const EdgeInsets.all(16),
+//             child: Column(
+//               crossAxisAlignment: CrossAxisAlignment.start,
+//               children: [
+//                 const Text(
+//                   '今だけ！の極旨クレープ販売',
+//                   style: TextStyle(
+//                     fontSize: 22,
+//                     fontWeight: FontWeight.bold,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 8),
+//                 const Text('📍 天神イムズ前（40m）'),
+//                 const SizedBox(height: 16),
+//                 const Text(
+//                   '焼きたてクレープを提供しています。\n'
+//                   'チョコバナナが一番人気です！',
+//                   style: TextStyle(height: 1.5),
+//                 ),
+//                 const SizedBox(height: 80),
+//               ],
+//             ),
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+// }
