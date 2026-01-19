@@ -20,7 +20,7 @@ class _CustomBottomBarState extends State<CustomBottomBar> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 90, // ← ★これが超重要
+      height: 90,
       child: SafeArea(
         child: Center(
           child: AnimatedContainer(

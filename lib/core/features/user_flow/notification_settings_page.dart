@@ -41,7 +41,21 @@ class _NotificationSettingsPageState
               ),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+
+                // ===== ← 戻るボタン =====
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  color: Colors.black87,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+
+                const SizedBox(height: 8),
+
+                // （今は空だけど、将来使えるコンテナ）
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(

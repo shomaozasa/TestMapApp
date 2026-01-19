@@ -3,20 +3,27 @@ import 'package:google_map_app/core/features/user_flow/review_history_page.dart'
 import 'package:google_map_app/core/features/user_flow/favorite_page.dart';
 import 'package:google_map_app/core/features/user_flow/notification_settings_page.dart';
 import 'package:google_map_app/core/features/user_flow/account_settings_page.dart';
+import 'package:google_map_app/core/features/user_flow/profile_edit_page.dart';
 
-class UserProfilePage extends StatelessWidget {
+class UserProfilePage extends StatefulWidget {
   const UserProfilePage({Key? key}) : super(key: key);
+
+  @override
+  State<UserProfilePage> createState() => _UserProfilePageState();
+}
+
+class _UserProfilePageState extends State<UserProfilePage> {
+  Color headerColor = Colors.blue;
+  String iconPath = "assets/user_icon.jpg";
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F0F8),
 
-      // AppBar
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: false,
         title: const Text(
           "プロフィール",
           style: TextStyle(color: Colors.black, fontSize: 20),
@@ -24,33 +31,32 @@ class UserProfilePage extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.black),
       ),
 
-      // 本文
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ヘッダー(仮)
+            // ===== ヘッダー =====
             Container(
               height: 120,
               width: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.blue[200]!,
-                    Colors.blue[100]!,
+                    headerColor.withOpacity(0.8),
+                    headerColor.withOpacity(0.4),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
 
-            // プロフィール画像
+            // ===== プロフィール画像 =====
             Transform.translate(
               offset: const Offset(0, -50),
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 50,
-                backgroundImage: AssetImage("assets/user_icon.jpg"),
+                backgroundImage: AssetImage(iconPath),
               ),
             ),
 
@@ -58,14 +64,30 @@ class UserProfilePage extends StatelessWidget {
               "sample user",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            // TextButton(
-            //   onPressed: () {},
-            //   child: const Text("編集"),
-            // ),
 
-            const SizedBox(height: 10),
+            // ===== 編集ボタン =====
+            TextButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProfileEditPage(),
+                  ),
+                );
 
-            // あなたの活動
+                if (result != null) {
+                  setState(() {
+                    headerColor = result["color"];
+                    iconPath = result["icon"];
+                  });
+                }
+              },
+              child: const Text("編集"),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ===== あなたの活動 =====
             _menuSection(
               title: "あなたの活動",
               items: [
@@ -99,7 +121,7 @@ class UserProfilePage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // 設定
+            // ===== 設定 =====
             _menuSection(
               title: "設定",
               items: [
@@ -135,7 +157,7 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
-  // セクション全体
+  // ===== セクション =====
   Widget _menuSection({required String title, required List<Widget> items}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,11 +174,8 @@ class UserProfilePage extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 6,
-              ),
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 6),
             ],
           ),
           child: Column(children: items),
@@ -165,7 +184,6 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
-  // アイテム
   Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,

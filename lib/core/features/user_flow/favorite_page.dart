@@ -37,6 +37,21 @@ class _FavoriteListPageState extends State<FavoriteListPage> {
             ),
             child: Column(
               children: [
+                // ===== ← 戻るボタン =====
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  color: Colors.black87,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+
+                const SizedBox(height: 6),
+
                 // 検索バー
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
