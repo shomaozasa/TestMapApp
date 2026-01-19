@@ -10,6 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  # ★ここに追加（SDK設定付き）
+  flutter_localizations:
+    sdk: flutter
 
   flutter_rating_bar: ^4.0.1
   geolocator: ^14.0.2
@@ -23,13 +27,15 @@ dependencies:
   analytics: ^2.0.3
   firebase_auth: ^6.1.2
   firebase_app_check: ^0.4.1+2
+  table_calendar: ^3.2.0
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
 
-# ここからFlutterの設定（1箇所にまとめました）
+# ここからFlutterの設定
 flutter:
   uses-material-design: true
 
