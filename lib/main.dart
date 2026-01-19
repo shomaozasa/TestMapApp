@@ -6,12 +6,12 @@ import 'login.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // 必須
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   FirebaseAuth.instance.setLanguageCode('ja');
   runApp(const MyApp());
 }
@@ -99,10 +99,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  'image/logo.jpg',
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset('image/logo.jpg', fit: BoxFit.cover),
               ),
             ),
           ),
@@ -146,7 +143,8 @@ class RealisticECGPainter extends CustomPainter {
       } else if (localX < waveLength * 0.20) {
         y = yCenter;
       } else if (localX < waveLength * 0.30) {
-        y = yCenter +
+        y =
+            yCenter +
             sin((localX - waveLength * 0.2) / (waveLength * 0.1) * pi) * 15;
       } else {
         y = yCenter;
@@ -194,10 +192,7 @@ class AccountCheckScreen extends StatelessWidget {
                   height: 150,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      'image/logo.jpg',
-                      fit: BoxFit.cover,
-                    ),
+                    child: Image.asset('image/logo.jpg', fit: BoxFit.cover),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -221,7 +216,8 @@ class AccountCheckScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const SignUpScreen()),
+                          builder: (context) => const SignUpScreen(),
+                        ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -234,7 +230,10 @@ class AccountCheckScreen extends StatelessWidget {
                     child: const Text(
                       '始める',
                       style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange,),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
                     ),
                   ),
                 ),
@@ -244,7 +243,8 @@ class AccountCheckScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const LoginScreen()),
+                        builder: (context) => const LoginScreen(),
+                      ),
                     );
                   },
                   child: const Text(
