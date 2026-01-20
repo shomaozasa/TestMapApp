@@ -1,13 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/event_model.dart';
-import 'package:google_map_app/core/models/template_model.dart'; // ★追加: テンプレートモデル
+// EventModelでGeoPointを使っているため、google_maps_flutterのインポートは不要な場合もありますが
+// 念のため記述しておきます。
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_map_app/core/models/template_model.dart'; // ★追加: テンプレートモデル
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ★ テスト用の固定ユーザーID（本番では FirebaseAuth.instance.currentUser.uid を使用）
-  final String _userId = 'test_user_id'; 
+  // // ★ テスト用の固定ユーザーID（本番では FirebaseAuth.instance.currentUser.uid を使用）
+  // final String _userId = 'test_user_id';
+
+  User? get user => FirebaseAuth.instance.currentUser;
+  String get _userId => user?.uid ?? '';
 
   // --- 1. イベント登録 (事業者用) ---
   Future<void> addEvent({
@@ -50,10 +56,10 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return EventModel.fromFirestore(doc);
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return EventModel.fromFirestore(doc);
+          }).toList();
+        });
   }
 
   // --- 3. お気に入り一覧の取得 (ユーザー別) ---
@@ -65,10 +71,10 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return EventModel.fromFirestore(doc);
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return EventModel.fromFirestore(doc);
+          }).toList();
+        });
   }
 
   // --- 4. お気に入りの切り替え (追加/削除) ---
