@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+// ★ 追加: 日本語化パッケージのインポート
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'signup.dart';
 import 'login.dart';
-// Firebase の設定ファイル（Webの場合はfirebase_options.dartを使う）
+// Firebase の設定ファイル
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,14 +29,28 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.orange,
         scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
       ),
+      
+      // ★★★ ここから追加: カレンダーを日本語で表示するための設定 ★★★
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ja'), // 日本語
+      ],
+      locale: const Locale('ja'), // アプリ全体を日本語に固定
+      // ★★★ ここまで追加 ★★★
+
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// -------------------- スプラッシュ画面 --------------------
+// -------------------- スプラッシュ画面 (変更なし) --------------------
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -109,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// -------------------- 心電図アニメーション --------------------
+// -------------------- 心電図アニメーション (変更なし) --------------------
 class RealisticECGPainter extends CustomPainter {
   final double progress;
 
@@ -162,7 +179,7 @@ class RealisticECGPainter extends CustomPainter {
   }
 }
 
-// -------------------- アカウント確認画面 --------------------
+// -------------------- アカウント確認画面 (変更なし) --------------------
 class AccountCheckScreen extends StatelessWidget {
   const AccountCheckScreen({super.key});
 
@@ -223,9 +240,9 @@ class AccountCheckScreen extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white, // 白色
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30), // 高さの半分以上で長丸
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                      elevation: 4, // 影の強さ
+                      elevation: 4,
                     ),
                     child: const Text(
                       '始める',

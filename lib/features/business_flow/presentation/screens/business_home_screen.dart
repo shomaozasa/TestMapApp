@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-// 遷移先のマップ画面をインポート
+// 各画面への遷移用インポート
 import 'package:google_map_app/features/business_flow/presentation/screens/business_map_screen.dart';
+import 'package:google_map_app/features/business_flow/presentation/screens/template_management_screen.dart';
+import 'package:google_map_app/features/business_flow/presentation/screens/business_schedule_screen.dart'; // ★追加: 予定画面
 
 class BusinessHomeScreen extends StatelessWidget {
+  // ★ テスト用の管理者ID (他の画面と共通の test_user_id)
+  final String currentAdminId = 'test_user_id'; 
+
   const BusinessHomeScreen({super.key});
 
   @override
@@ -15,23 +20,22 @@ class BusinessHomeScreen extends StatelessWidget {
       body: Stack(
         children: [
           // --- 背景 (上部) ---
-          // グラデーションを廃止し、単色のオレンジ背景に
           Container(
-            height: screenHeight * 0.35, // 画面上部35%くらい
-            color: const Color(0xFFFFB74D), // 薄いオレンジ (Orange 300)
+            height: screenHeight * 0.35, 
+            color: const Color(0xFFFFB74D), // 薄いオレンジ
           ),
 
           // --- メインコンテンツ ---
           SafeArea(
             child: Column(
               children: [
-                // 1. ヘッダー (店舗名と通知アイコン)
+                // 1. ヘッダー
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const SizedBox(width: 24), // 中央寄せのためのスペーサー
+                      const SizedBox(width: 24),
                       const Text(
                         'sample cafe',
                         style: TextStyle(
@@ -49,7 +53,7 @@ class BusinessHomeScreen extends StatelessWidget {
 
                 // 2. アバター画像
                 Container(
-                  padding: const EdgeInsets.all(3), // 白い枠線の太さ
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
@@ -64,7 +68,6 @@ class BusinessHomeScreen extends StatelessWidget {
                   child: const CircleAvatar(
                     radius: 45,
                     backgroundColor: Colors.grey,
-                    // 画像がないためアイコンで代用
                     child: Icon(Icons.person, size: 50, color: Colors.white),
                   ),
                 ),
@@ -85,16 +88,15 @@ class BusinessHomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 30),
 
-                const SizedBox(height: 40),
-
-                // 5. メインボタン (マップ・予定)
+                // 5. メインボタン群 (中央)
+                
+                // [マップ] ボタン
                 _buildMainButton(
                   context: context,
                   label: 'マップ',
                   icon: Icons.map_outlined,
                   isPrimary: true, // オレンジ色
                   onPressed: () {
-                    // マップ画面へ遷移
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -104,17 +106,21 @@ class BusinessHomeScreen extends StatelessWidget {
                   },
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
+                // [予定] ボタン
                 _buildMainButton(
                   context: context,
                   label: '予定',
                   icon: Icons.calendar_today_outlined,
                   isPrimary: false, // 白色
                   onPressed: () {
-                    // 未実装のアラート
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('予定機能は現在開発中です')),
+                    // ★ 修正: カレンダー画面へ遷移
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const BusinessScheduleScreen(),
+                      ),
                     );
                   },
                 ),
@@ -122,15 +128,31 @@ class BusinessHomeScreen extends StatelessWidget {
                 const Spacer(),
 
                 // 6. 下部メニュー (フッター)
-                // 背景 (下部) - グラデーションなし
                 Container(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-                  color: const Color(0xFFFFB74D), // オレンジ (上部と同じ色)
+                  color: const Color(0xFFFFB74D),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
+                      // 左端: 時計アイコン
                       _buildFooterButton(Icons.access_time),
-                      _buildFooterButton(Icons.description_outlined),
+                      
+                      // ★ 左から2番目: テンプレート管理へ遷移
+                      _buildFooterButton(
+                        Icons.description_outlined,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TemplateManagementScreen(
+                                adminId: currentAdminId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      
+                      // 右側: チャット・設定 (機能未実装)
                       _buildFooterButton(Icons.chat_bubble_outline),
                       _buildFooterButton(Icons.settings_outlined),
                     ],
@@ -144,7 +166,7 @@ class BusinessHomeScreen extends StatelessWidget {
     );
   }
 
-  /// メインのアクションボタン (マップ・予定)
+  /// メインのアクションボタン
   Widget _buildMainButton({
     required BuildContext context,
     required String label,
@@ -153,10 +175,10 @@ class BusinessHomeScreen extends StatelessWidget {
     required VoidCallback onPressed,
   }) {
     return Container(
-      width: 240, // ボタンの幅
-      height: 64, // ボタンの高さ
+      width: 240,
+      height: 60,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -171,23 +193,23 @@ class BusinessHomeScreen extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: isPrimary ? const Color(0xFFFFAB40) : Colors.white,
           foregroundColor: isPrimary ? Colors.white : Colors.black87,
-          elevation: 0, // 影はContainerでつけるので0
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(30),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 28),
+            Icon(icon, size: 26),
             const SizedBox(width: 16),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+                letterSpacing: 1.1,
               ),
             ),
           ],
@@ -196,24 +218,27 @@ class BusinessHomeScreen extends StatelessWidget {
     );
   }
 
-  /// フッターのアイコンボタン
-  Widget _buildFooterButton(IconData icon) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+  /// フッターのアイコンボタン (onTap引数付き)
+  Widget _buildFooterButton(IconData icon, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: Colors.black54, size: 26),
       ),
-      child: Icon(icon, color: Colors.black54, size: 28),
     );
   }
 }
