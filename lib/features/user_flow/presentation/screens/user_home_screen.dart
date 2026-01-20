@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
-// ★ 作成したお気に入り画面をインポート (パスは環境に合わせて調整してください)
+// ★ 作成したお気に入り画面をインポート
 import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
 
+// ★ クラス名を UserHomeScreen に戻しました
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
 
@@ -31,7 +32,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   // お気に入りIDリスト
   Set<String> _bookmarkedIds = {};
 
-  // ★ 画面更新でリロードされないようStreamを保持
+  // 画面更新でリロードされないようStreamを保持
   late Stream<List<EventModel>> _eventsStream;
   late Stream<List<EventModel>> _favoritesStream;
 
@@ -59,7 +60,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               if (eventSnapshot.hasData) {
                 _mapEvents = eventSnapshot.data!;
               }
-              // エラーや空データの処理は簡略化
               final List<EventModel> events = eventSnapshot.data ?? [];
 
               final Set<Marker> markers = events.map((event) {
@@ -72,7 +72,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueRed,
                   ),
-                  // ★ InfoWindowは使わず、onTapで状態を更新
                   onTap: () {
                     setState(() {
                       _selectedEvent = event;
@@ -81,31 +80,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 );
               }).toSet();
 
-              // お気に入り情報を監視して重ねる
+              // お気に入り情報を監視してマーカーを表示
               return StreamBuilder<List<EventModel>>(
                 stream: _favoritesStream,
                 builder: (context, favSnapshot) {
                   if (favSnapshot.hasData) {
                     _bookmarkedIds = favSnapshot.data!.map((e) => e.id).toSet();
                   }
-
-                  final Set<Marker> markers = _mapEvents.map((event) {
-                    return Marker(
-                      markerId: MarkerId(event.id),
-                      position: LatLng(
-                        event.location.latitude,
-                        event.location.longitude,
-                      ),
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueRed,
-                      ),
-                      onTap: () {
-                        setState(() {
-                          _selectedEvent = event;
-                        });
-                      },
-                    );
-                  }).toSet();
 
                   return GoogleMap(
                     mapType: MapType.normal,
@@ -132,11 +113,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                   );
                 },
-                //     markers: markers,
-                //     // カードが表示されている時は、Googleロゴなどが隠れないようパディング
-                //     padding: EdgeInsets.only(
-                //       bottom: _selectedEvent != null ? 260 : 0,
-                //     ),
               );
             },
           ),
@@ -162,7 +138,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  /// ★ マップ上に表示するイベント詳細カード (お気に入りボタン付き)
+  /// マップ上に表示するイベント詳細カード (お気に入りボタン付き)
   Widget _buildEventCard(EventModel event) {
     final isBookmarked = _bookmarkedIds.contains(event.id);
 
@@ -275,11 +251,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ],
                         ),
                         const Spacer(),
-                        Align(
+                        const Align(
                           alignment: Alignment.bottomRight,
                           child: Text(
                             '詳細を見る >',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: Colors.blue,
                               fontWeight: FontWeight.bold,
@@ -292,7 +268,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 ),
               ],
             ),
-            // ★ ハートボタン
+            // ハートボタン
             Positioned(
               top: 5,
               right: 5,
@@ -312,14 +288,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  /// ★ 詳細ボトムシート (お気に入りボタン追加)
+  /// 詳細ボトムシート (お気に入りボタン追加)
   void _showEventDetails(EventModel event) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        // シート内でもお気に入り状態を更新するため StreamBuilder を使用
         return StreamBuilder<List<EventModel>>(
           stream: _firestoreService.getFavoritesStream(),
           builder: (context, snapshot) {
@@ -375,7 +350,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ),
                         ),
                       ),
-                      // ★ お気に入りボタン
+                      // お気に入りボタン
                       Positioned(
                         top: 10,
                         left: 10,
@@ -394,58 +369,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           ),
                         ),
                       ),
-                      //     // カテゴリチップ
-                      //     Container(
-                      //       padding: const EdgeInsets.symmetric(
-                      //         horizontal: 12,
-                      //         vertical: 6,
-                      //       ),
-                      //       decoration: BoxDecoration(
-                      //         color: Colors.orange.shade50,
-                      //         borderRadius: BorderRadius.circular(20),
-                      //         border: Border.all(color: Colors.orange.shade200),
-                      //       ),
-                      //       child: Text(
-                      //         event.categoryId.isNotEmpty
-                      //             ? event.categoryId
-                      //             : '未分類',
-                      //         style: TextStyle(
-                      //           color: Colors.orange.shade800,
-                      //           fontWeight: FontWeight.bold,
-                      //           fontSize: 12,
-                      //         ),
-                      //       ),
-                      //     ),
-                      //     const SizedBox(height: 12),
-                      // Text(
-                      //   event.eventName,
-                      //   style: Theme.of(context).textTheme.headlineMedium
-                      //       ?.copyWith(fontWeight: FontWeight.bold),
-                      // ),
-                      // const SizedBox(height: 20),
-                      // _buildInfoRow(Icons.access_time, '日時', event.eventTime),
-                      // const SizedBox(height: 16),
-                      // _buildInfoRow(
-                      //   Icons.location_on_outlined,
-                      //   '場所',
-                      //   event.address.isNotEmpty ? event.address : '住所情報なし',
-                      // ),
-                      // const Divider(height: 40),
-                      // Text(
-                      //   '詳細情報',
-                      //   style: Theme.of(context).textTheme.titleMedium
-                      //       ?.copyWith(fontWeight: FontWeight.bold),
-                      // ),
-                      // const SizedBox(height: 8),
-                      // Text(
-                      //   event.description.isNotEmpty
-                      //       ? event.description
-                      //       : '詳細情報はありません。',
-                      //   style: Theme.of(
-                      //     context,
-                      //   ).textTheme.bodyLarge?.copyWith(height: 1.5),
-                      // ),
-                      //   const SizedBox(height: 40),
                     ],
                   ),
                   // (詳細情報)
@@ -479,7 +402,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           const SizedBox(height: 12),
                           Text(
                             event.eventName,
-                            style: Theme.of(context).textTheme.headlineMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 20),
@@ -497,7 +422,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                           const Divider(height: 40),
                           Text(
                             '詳細情報',
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
@@ -505,9 +432,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             event.description.isNotEmpty
                                 ? event.description
                                 : '詳細情報はありません。',
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(height: 1.5),
                           ),
                           const SizedBox(height: 40),
                         ],
@@ -553,7 +481,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // ★ デザインされたボトムバー
+  // デザインされたボトムバー
   Widget _buildCustomBottomBar() {
     return Container(
       height: 70,
