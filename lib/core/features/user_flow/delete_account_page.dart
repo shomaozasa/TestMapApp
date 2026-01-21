@@ -44,10 +44,10 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
   }
 
   Future<void> _deleteAccount() async {
-    Navigator.pop(context); // ダイアログ閉じる
+    Navigator.pop(context);
     setState(() => _isLoading = true);
 
-    // 🚨 本来はここでAPI / Firebase Auth を呼ぶ
+    // 本来はここでAPI / Firebase Auth を呼ぶ
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
@@ -58,7 +58,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       const SnackBar(content: Text("アカウントを削除しました")),
     );
 
-    // 🔁 本来はログイン画面へ
+    // 本来はログイン画面へ
     Navigator.of(context)
       ..pop()
       ..pop();

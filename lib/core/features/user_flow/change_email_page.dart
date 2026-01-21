@@ -36,7 +36,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
 
     setState(() => _isLoading = true);
 
-    // 📩 本来はここでメール変更APIを呼ぶ
+    // 本来はここでメール変更APIを呼ぶ
     await Future.delayed(const Duration(seconds: 1));
 
     setState(() => _isLoading = false);

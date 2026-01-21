@@ -39,7 +39,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     setState(() => _isLoading = true);
 
-    // 🔐 本来はここで認証APIを呼ぶ
+    // 本来はここで認証APIを呼ぶ
     await Future.delayed(const Duration(seconds: 1));
 
     setState(() => _isLoading = false);
