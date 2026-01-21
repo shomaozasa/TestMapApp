@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_map_app/core/features/user_flow/custom_bottom_bar.dart';
+import 'package:google_map_app/core/features/user_flow/change_password_page.dart';
+import 'package:google_map_app/core/features/user_flow/change_email_page.dart';
+import 'package:google_map_app/core/features/user_flow/two_factor_auth_page.dart';
+import 'package:google_map_app/core/features/user_flow/delete_account_page.dart';
 
-class AccountSettingsPage extends StatelessWidget {
+class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({Key? key}) : super(key: key);
+
+  @override
+  State<AccountSettingsPage> createState() => _AccountSettingsPageState();
+}
+
+class _AccountSettingsPageState extends State<AccountSettingsPage> {
+  String _userName = "sample user";
+  bool _twoFactorEnabled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +23,6 @@ class AccountSettingsPage extends StatelessWidget {
 
       body: Column(
         children: [
-          
           // ===== 上部グラデーションヘッダー =====
           Container(
             width: double.infinity,
@@ -32,32 +43,9 @@ class AccountSettingsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
-                // ===== ← 戻るボタン =====
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  color: Colors.black87,
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-
-                const SizedBox(height: 8),
-
-                // （今は空だけど、将来使えるコンテナ）
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      )
-                    ],
-                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
@@ -73,7 +61,6 @@ class AccountSettingsPage extends StatelessWidget {
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.6,
-                color: Colors.black87,
               ),
             ),
           ),
@@ -100,88 +87,78 @@ class AccountSettingsPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        "アカウント情報",
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                    ),
+                    _sectionTitle("アカウント情報"),
 
                     _menuTile(
-                      context,
                       icon: Icons.badge,
                       title: "ユーザー名",
-                      subtitle: "sample user",
-                      onTap: () {
-                        // ユーザー名編集
-                      },
+                      subtitle: _userName,
+                      onTap: () => _showEditUsernameDialog(),
                     ),
 
                     _menuTile(
-                      context,
                       icon: Icons.email,
                       title: "メールアドレス",
                       subtitle: "sample@email.com",
                       onTap: () {
-                        // メール変更
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChangeEmailPage(),
+                          ),
+                        );
                       },
                     ),
 
                     _menuTile(
-                      context,
                       icon: Icons.lock,
                       title: "パスワード変更",
                       onTap: () {
-                        // パスワード変更
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChangePasswordPage(),
+                          ),
+                        );
                       },
                     ),
 
                     const SizedBox(height: 16),
-
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        "セキュリティ",
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                    ),
+                    _sectionTitle("セキュリティ"),
 
                     _menuTile(
-                      context,
                       icon: Icons.security,
                       title: "二段階認証",
-                      subtitle: "未設定",
-                      onTap: () {
-                        // 2FA設定
+                      subtitle: _twoFactorEnabled ? "有効" : "未設定",
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TwoFactorAuthPage(),
+                          ),
+                        );
                       },
                     ),
 
                     const SizedBox(height: 16),
-
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        "その他",
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                    ),
+                    _sectionTitle("その他"),
 
                     _dangerTile(
-                      context,
                       icon: Icons.logout,
                       title: "ログアウト",
-                      onTap: () {
-                        // ログアウト処理
-                      },
+                      onTap: _showLogoutDialog,
                     ),
 
                     _dangerTile(
-                      context,
                       icon: Icons.delete_forever,
                       title: "アカウント削除",
                       onTap: () {
-                        // 退会処理
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DeleteAccountPage(),
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -198,9 +175,19 @@ class AccountSettingsPage extends StatelessWidget {
     );
   }
 
+  // ===== セクションタイトル =====
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 13, color: Colors.grey),
+      ),
+    );
+  }
+
   // ===== 通常メニュー =====
-  Widget _menuTile(
-    BuildContext context, {
+  Widget _menuTile({
     required IconData icon,
     required String title,
     String? subtitle,
@@ -221,8 +208,7 @@ class AccountSettingsPage extends StatelessWidget {
   }
 
   // ===== 危険操作 =====
-  Widget _dangerTile(
-    BuildContext context, {
+  Widget _dangerTile({
     required IconData icon,
     required String title,
     VoidCallback? onTap,
@@ -239,6 +225,87 @@ class AccountSettingsPage extends StatelessWidget {
         ),
         const Divider(height: 1),
       ],
+    );
+  }
+
+  // ===== ユーザー名編集 =====
+  void _showEditUsernameDialog() {
+    final controller = TextEditingController(text: _userName);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("ユーザー名を変更"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: "新しいユーザー名",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("キャンセル"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _userName = controller.text;
+              });
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("ユーザー名を変更しました")),
+              );
+            },
+            child: const Text("保存"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== 二段階認証切り替え =====
+  void _toggleTwoFactor() {
+    setState(() {
+      _twoFactorEnabled = !_twoFactorEnabled;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _twoFactorEnabled
+              ? "二段階認証を有効にしました"
+              : "二段階認証を無効にしました",
+        ),
+      ),
+    );
+  }
+
+  // ===== ログアウト =====
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("ログアウト"),
+        content: const Text("本当にログアウトしますか？"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("キャンセル"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              // ログアウト処理
+            },
+            child: const Text("ログアウト"),
+          ),
+        ],
+      ),
     );
   }
 }
