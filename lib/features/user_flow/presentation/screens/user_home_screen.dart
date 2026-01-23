@@ -557,16 +557,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               );
             },
           ),
-          // 3. ホームボタン（家のマーク：現在地へジャンプ）
+          // 3. ホームボタン
           _buildCircleButton(
-            icon: Icons.home, // ここに家のマークを復活
+            icon: Icons.home,
             onPressed: () async {
-              if (_currentPosition != null) {
-                final GoogleMapController controller = await _controller.future;
-                controller.animateCamera(
-                  CameraUpdate.newLatLngZoom(_currentPosition!, 14.5),
-                );
-              }
+              // **************************************
+              // ホームボタンの処理
+              // **************************************
             },
           ),
           // 4. プロフィールボタン（人）
