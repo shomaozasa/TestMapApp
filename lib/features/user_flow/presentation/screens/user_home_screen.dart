@@ -522,6 +522,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
+  /// ボトムバーの修正版
   Widget _buildCustomBottomBar() {
     return Container(
       height: 70,
@@ -539,18 +540,44 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          // 1. 選択解除ボタン（×）
           _buildCircleButton(
             icon: Icons.close,
             onPressed: () => setState(() => _selectedEvent = null),
           ),
+          // 2. お気に入り一覧ボタン（★）
           _buildCircleButton(
             icon: Icons.star_border,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
-            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FavoriteListScreen(),
+                ),
+              );
+            },
           ),
-          _buildCircleButton(icon: Icons.person_outline, onPressed: () {}),
+          // 3. ホームボタン（家のマーク：現在地へジャンプ）
+          _buildCircleButton(
+            icon: Icons.home, // ここに家のマークを復活
+            onPressed: () async {
+              if (_currentPosition != null) {
+                final GoogleMapController controller = await _controller.future;
+                controller.animateCamera(
+                  CameraUpdate.newLatLngZoom(_currentPosition!, 14.5),
+                );
+              }
+            },
+          ),
+          // 4. プロフィールボタン（人）
+          _buildCircleButton(
+            icon: Icons.person_outline,
+            onPressed: () {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('利用者プロフィールは準備中です')));
+            },
+          ),
         ],
       ),
     );
