@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart'; // 現在地取得に必要
+import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+// プロジェクト固有のインポート（パスが正しいかご確認ください）
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
+import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
+import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -18,32 +24,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       Completer<GoogleMapController>();
   final FirestoreService _firestoreService = FirestoreService();
 
-  // ★ 予備の初期位置（天神）
-  static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
-
-  // ★ 現在地を保持する変数
+  static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719); // 天神
   LatLng? _currentPosition;
 
-  // 選択中のイベント
   EventModel? _selectedEvent;
-  // お気に入りIDリスト
-  Set<String> _bookmarkedIds = {};
-
   late Stream<List<EventModel>> _eventsStream;
   late Stream<List<EventModel>> _favoritesStream;
 
   @override
   void initState() {
     super.initState();
-    // Streamの初期化
     _eventsStream = _firestoreService.getEventsStream();
-    _favoritesStream = _firestoreService.getFavoritesStream();
 
-    // ★ 起動時に現在地取得を開始
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _favoritesStream = _firestoreService.getFavoritesStream();
+    } else {
+      _favoritesStream = Stream.value([]);
+    }
+
     _initializeLocation();
   }
 
-  /// ★ 現在地取得とカメラ移動のロジック
   Future<void> _initializeLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -60,7 +62,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
       if (permission == LocationPermission.deniedForever) return;
 
-      // 現在地を取得
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -73,7 +74,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         });
       }
 
-      // マップコントローラー準備完了後にカメラを移動
       final GoogleMapController controller = await _controller.future;
       controller.animateCamera(CameraUpdate.newLatLngZoom(newLatLng, 14.5));
     } catch (e) {
@@ -88,13 +88,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         title: const Text('イベントマップ（利用者）'),
         automaticallyImplyLeading: false,
       ),
-      body: Stack(
-        children: [
-          // --- 1. Google Map & データ取得 ---
-          StreamBuilder<List<EventModel>>(
-            stream: _eventsStream,
-            builder: (context, eventSnapshot) {
-              final List<EventModel> events = eventSnapshot.data ?? [];
+      body: StreamBuilder<List<EventModel>>(
+        stream: _eventsStream,
+        builder: (context, eventSnapshot) {
+          final List<EventModel> events = eventSnapshot.data ?? [];
+
+          return StreamBuilder<List<EventModel>>(
+            stream: _favoritesStream,
+            builder: (context, favSnapshot) {
+              // お気に入りIDのセットを作成
+              final Set<String> bookmarkedIds = favSnapshot.hasData
+                  ? favSnapshot.data!.map((e) => e.id).toSet()
+                  : {};
 
               // マーカーの作成
               final Set<Marker> markers = events.map((event) {
@@ -104,9 +109,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     event.location.latitude,
                     event.location.longitude,
                   ),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueRed,
-                  ),
                   onTap: () {
                     setState(() {
                       _selectedEvent = event;
@@ -115,16 +117,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 );
               }).toSet();
 
-              return StreamBuilder<List<EventModel>>(
-                stream: _favoritesStream,
-                builder: (context, favSnapshot) {
-                  if (favSnapshot.hasData) {
-                    _bookmarkedIds = favSnapshot.data!.map((e) => e.id).toSet();
-                  }
-
-                  return GoogleMap(
+              return Stack(
+                children: [
+                  // 1. Google Map
+                  GoogleMap(
                     mapType: MapType.normal,
-                    // ★ 現在地があればそこを、なければ天神を初期位置にする
                     initialCameraPosition: CameraPosition(
                       target: _currentPosition ?? _kFallbackLocation,
                       zoom: 14.5,
@@ -145,36 +142,35 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     padding: EdgeInsets.only(
                       bottom: _selectedEvent != null ? 280 : 100,
                     ),
-                  );
-                },
+                  ),
+
+                  // 2. イベント詳細カード
+                  if (_selectedEvent != null)
+                    Positioned(
+                      bottom: 120,
+                      left: 20,
+                      right: 20,
+                      child: _buildEventCard(_selectedEvent!, bookmarkedIds),
+                    ),
+
+                  // 3. ボトムバー
+                  Positioned(
+                    bottom: 30,
+                    left: 20,
+                    right: 20,
+                    child: _buildCustomBottomBar(),
+                  ),
+                ],
               );
             },
-          ),
-
-          // --- 2. イベント詳細カード (オーバーレイ) ---
-          if (_selectedEvent != null)
-            Positioned(
-              bottom: 120,
-              left: 20,
-              right: 20,
-              child: _buildEventCard(_selectedEvent!),
-            ),
-
-          // --- 3. カスタムボトムバー ---
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: _buildCustomBottomBar(),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  /// イベント詳細カード
-  Widget _buildEventCard(EventModel event) {
-    final isBookmarked = _bookmarkedIds.contains(event.id);
+  Widget _buildEventCard(EventModel event, Set<String> bookmarkedIds) {
+    final isBookmarked = bookmarkedIds.contains(event.id);
 
     return GestureDetector(
       onTap: () => _showEventDetails(event),
@@ -203,10 +199,24 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     width: 120,
                     height: double.infinity,
                     child: event.eventImage.isNotEmpty
-                        ? Image.network(event.eventImage, fit: BoxFit.cover)
+                        ? Image.network(
+                            event.eventImage,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          )
                         : Container(
                             color: Colors.grey.shade200,
-                            child: const Icon(Icons.image, color: Colors.grey),
+                            child: const Icon(
+                              Icons.image,
+                              size: 40,
+                              color: Colors.grey,
+                            ),
                           ),
                   ),
                 ),
@@ -216,6 +226,27 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            event.categoryId.isNotEmpty
+                                ? event.categoryId
+                                : '未分類',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
                         Text(
                           event.eventName,
                           maxLines: 1,
@@ -234,26 +265,32 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                               color: Colors.black54,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              event.eventTime,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
+                            Expanded(
+                              child: Text(
+                                event.eventTime,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const Spacer(),
-                        const Align(
-                          alignment: Alignment.bottomRight,
-                          child: Text(
-                            '詳細を見る >',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '詳細 >',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -269,7 +306,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   isBookmarked ? Icons.favorite : Icons.favorite_border,
                   color: isBookmarked ? Colors.red : Colors.grey,
                 ),
-                onPressed: () => _firestoreService.toggleFavorite(event),
+                onPressed: () async {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await _firestoreService.toggleFavorite(event);
+                  }
+                },
               ),
             ),
           ],
@@ -278,7 +320,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  /// 詳細ボトムシート
   void _showEventDetails(EventModel event) {
     showModalBottomSheet(
       context: context,
@@ -286,13 +327,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StreamBuilder<List<EventModel>>(
-          stream: _firestoreService.getFavoritesStream(),
+          stream: _favoritesStream,
           builder: (context, snapshot) {
             final isBookmarked =
                 snapshot.hasData && snapshot.data!.any((e) => e.id == event.id);
 
             return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
+              height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -314,7 +355,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                   event.eventImage,
                                   fit: BoxFit.cover,
                                 )
-                              : Container(color: Colors.grey.shade200),
+                              : const Center(
+                                  child: Icon(
+                                    Icons.image,
+                                    size: 50,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                         ),
                       ),
                       Positioned(
@@ -340,8 +387,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                   : Icons.favorite_border,
                               color: isBookmarked ? Colors.red : Colors.grey,
                             ),
-                            onPressed: () =>
-                                _firestoreService.toggleFavorite(event),
+                            onPressed: () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await _firestoreService.toggleFavorite(event);
+                              }
+                            },
                           ),
                         ),
                       ),
@@ -360,15 +411,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          _buildDetailRow(
+                          const SizedBox(height: 24),
+                          _buildBusinessLink(event.adminId),
+                          const SizedBox(height: 24),
+                          _buildInfoRow(
                             Icons.access_time,
                             '日時',
                             event.eventTime,
                           ),
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            Icons.location_on,
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            Icons.location_on_outlined,
                             '場所',
                             event.address,
                           ),
@@ -398,7 +451,59 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
+  Widget _buildBusinessLink(String adminId) {
+    if (adminId.isEmpty) return const SizedBox.shrink();
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(adminId)
+          .get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists)
+          return const SizedBox.shrink();
+        final business = BusinessUserModel.fromFirestore(snapshot.data!);
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusinessPublicProfileScreen(adminId: adminId),
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundImage:
+                      (business.iconImage != null &&
+                          business.iconImage!.isNotEmpty)
+                      ? NetworkImage(business.iconImage!)
+                      : null,
+                  child:
+                      (business.iconImage == null ||
+                          business.iconImage!.isEmpty)
+                      ? const Icon(Icons.store)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  business.adminName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
         Icon(icon, size: 20, color: Colors.black54),
@@ -417,7 +522,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  /// ボトムバー
   Widget _buildCustomBottomBar() {
     return Container(
       height: 70,
@@ -441,26 +545,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           ),
           _buildCircleButton(
             icon: Icons.star_border,
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FavoriteListScreen(),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
+            ),
           ),
-          _buildCircleButton(icon: Icons.home, onPressed: () {}),
           _buildCircleButton(icon: Icons.person_outline, onPressed: () {}),
         ],
       ),
     );
   }
 
-  Widget _buildCircleButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
+  Widget _buildCircleButton({IconData? icon, required VoidCallback onPressed}) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
