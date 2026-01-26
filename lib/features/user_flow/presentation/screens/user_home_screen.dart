@@ -10,6 +10,8 @@ import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
+// ★ 追加: 利用者プロフィール画面のインポート
+import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -32,7 +34,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   @override
   void initState() {
     super.initState();
-    // イベント一覧のみ取得（お気に入りストリームは不要になったため削除）
     _eventsStream = _firestoreService.getEventsStream();
     _initializeLocation();
   }
@@ -329,7 +330,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // ★ 事業者情報 + フォローボタン
+                      // 事業者情報 + フォローボタン
                       _buildBusinessLinkWithFollow(event.adminId),
                       const SizedBox(height: 24),
                       _buildInfoRow(
@@ -367,7 +368,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // ★ 修正: 事業者リンクにフォローボタンを追加
+  // 事業者リンクにフォローボタンを追加
   Widget _buildBusinessLinkWithFollow(String adminId) {
     if (adminId.isEmpty) return const SizedBox.shrink();
     
@@ -426,7 +427,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         ],
                       ),
                     ),
-                    // ★ フォローボタン (StreamBuilderでリアルタイム監視)
+                    // フォローボタン (StreamBuilderでリアルタイム監視)
                     StreamBuilder<bool>(
                       stream: _firestoreService.isBusinessFollowedStream(adminId),
                       builder: (context, snapshot) {
@@ -436,6 +437,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             final user = FirebaseAuth.instance.currentUser;
                             if (user != null) {
                               await _firestoreService.toggleFollowBusiness(adminId);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('フォローするにはログインが必要です')),
+                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -504,7 +509,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             icon: Icons.close,
             onPressed: () => setState(() => _selectedEvent = null),
           ),
-          // ★ アイコンを「人（事業者）」っぽいものに変更
+          // フォローリスト一覧（ストアアイコン）
           _buildCircleButton(
             icon: Icons.store_mall_directory_outlined, 
             onPressed: () {
@@ -520,12 +525,23 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             icon: Icons.home,
             onPressed: () {},
           ),
+          // ★ 修正: 利用者プロフィール画面へ遷移
           _buildCircleButton(
             icon: Icons.person_outline,
             onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('利用者プロフィールは準備中です')));
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserProfileScreen(userId: user.uid),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ログイン情報が取得できません')),
+                );
+              }
             },
           ),
         ],
