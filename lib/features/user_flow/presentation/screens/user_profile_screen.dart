@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/user_model.dart';
-import 'package:google_map_app/features/_authentication/presentation/screens/login_screen.dart';
+
+// ★追加: 作成したログアウトボタンをインポート
+import 'package:google_map_app/features/_authentication/presentation/screens/logout_button.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -26,7 +28,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   
   String? _currentIconUrl;
   
-  // 画像関連
   XFile? _pickedFile;
   Uint8List? _webImageBytes;
 
@@ -59,7 +60,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (doc.exists) {
         final user = UserModel.fromFirestore(doc);
         _userNameController.text = user.userName;
-        _emailController.text = user.email; // メールは表示のみ
+        _emailController.text = user.email;
         setState(() {
           _currentIconUrl = user.iconImage;
         });
@@ -106,7 +107,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       String? iconUrl = _currentIconUrl;
 
-      // 新しい画像があればアップロード
       if (_pickedFile != null) {
         final ref = FirebaseStorage.instance
             .ref()
@@ -120,7 +120,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         iconUrl = await ref.getDownloadURL();
       }
 
-      // Firestore更新
       await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
         'user_name': _userNameController.text.trim(),
         'icon_image': iconUrl,
@@ -131,7 +130,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('プロフィールを更新しました')),
         );
-        Navigator.pop(context); // ホームへ戻る
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -144,48 +143,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  // ログアウト処理
-  Future<void> _logout() async {
-    final bool? shouldLogout = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text('ログアウトしてログイン画面に戻りますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ログアウト', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true) {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    }
-  }
+  // ★ ログアウトメソッド(_logout)は削除しました（LogoutButton内に移動したため）
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('マイページ'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'ログアウト',
-          ),
+        actions: const [
+          // ★ 修正: 切り出したコンポーネントを配置するだけ！
+          LogoutButton(),
         ],
       ),
       body: _isLoading
@@ -198,8 +165,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     _buildIconPicker(),
                     const SizedBox(height: 32),
-                    
-                    // ユーザー名 (編集可能)
                     TextFormField(
                       controller: _userNameController,
                       decoration: const InputDecoration(
@@ -209,8 +174,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       validator: (v) => v!.isEmpty ? '入力してください' : null,
                     ),
                     const SizedBox(height: 16),
-                    
-                    // メールアドレス (編集不可)
                     TextFormField(
                       controller: _emailController,
                       readOnly: true,
@@ -223,12 +186,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         prefixIcon: Icon(Icons.lock, size: 18, color: Colors.grey),
                       ),
                     ),
-                    
                     const SizedBox(height: 40),
                     ElevatedButton(
                       onPressed: _saveProfile,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue, // 利用者なので青系
+                        backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
                       ),
