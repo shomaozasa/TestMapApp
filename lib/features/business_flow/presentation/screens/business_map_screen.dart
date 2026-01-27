@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/service/storage_service.dart';
+import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/template_model.dart';
 
 class BusinessMapScreen extends StatefulWidget {
@@ -26,16 +27,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
 
-  // ★ 予備の初期位置（天神）
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
-
-  // ★ 現在地保持用（最初はnull）
   LatLng? _currentPosition;
 
   Marker? _tappedMarker;
   LatLng? _tappedLatLng;
 
-  // コントローラー
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
@@ -46,14 +43,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   final List<String> _categories = ['Food', 'Music', 'Shop', 'Art', 'Other'];
   String _selectedCategory = 'Food';
 
-  // 画像関連
   XFile? _pickedImage;
   Uint8List? _imageBytes;
   String? _templateImageUrl;
 
   final ImagePicker _picker = ImagePicker();
 
-  // フラグ
   bool _isLoadingSheet = false;
   bool _isLoadingLocation = false;
   bool _isBottomSheetOpen = false;
@@ -66,28 +61,18 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   @override
   void initState() {
     super.initState();
-    // ★ 起動時に現在地取得を開始
     _initializeLocation();
   }
 
-  /// ★ 位置情報の初期化とカメラ移動
   Future<void> _initializeLocation() async {
     try {
       Position position = await _determinePosition();
       final newLatLng = LatLng(position.latitude, position.longitude);
-
-      if (mounted) {
-        setState(() {
-          _currentPosition = newLatLng;
-        });
-      }
-
-      // マップコントローラーが準備できたらカメラを移動
+      if (mounted) setState(() => _currentPosition = newLatLng);
       final GoogleMapController controller = await _controller.future;
       controller.animateCamera(CameraUpdate.newLatLngZoom(newLatLng, 15.0));
     } catch (e) {
       debugPrint('初期位置取得エラー: $e');
-      // 失敗した場合は initialCameraPosition の fallback (天神) が使われる
     }
   }
 
@@ -106,34 +91,76 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     return "${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}";
   }
 
+  String _formatTimeOfDay(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _selectTime(
+    BuildContext context,
+    TextEditingController controller,
+    StateSetter setModalState,
+  ) async {
+    TimeOfDay initialTime = TimeOfDay.now();
+    if (controller.text.isNotEmpty) {
+      try {
+        final parts = controller.text.split(':');
+        initialTime = TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      } catch (_) {}
+    }
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+
+    if (picked != null) {
+      setModalState(() => controller.text = _formatTimeOfDay(picked));
+    }
+  }
+
+  void _addHoursToEndTime(int hours, StateSetter setModalState) {
+    if (_startTimeController.text.isEmpty) return;
+    try {
+      final parts = _startTimeController.text.split(':');
+      int hour = int.parse(parts[0]);
+      int minute = int.parse(parts[1]);
+      int newHour = (hour + hours) % 24;
+      setModalState(
+        () => _endTimeController.text =
+            '${newHour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
+      );
+    } catch (e) {
+      debugPrint('時刻計算エラー: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top + 70.0;
-    final double bottomPadding = 120.0;
-
+    const double bottomPadding = 120.0;
     return Scaffold(
       body: Stack(
         children: [
           GoogleMap(
             mapType: MapType.normal,
-            // ★ 現在地があればそこを、なければ天神を初期位置にする
             initialCameraPosition: CameraPosition(
               target: _currentPosition ?? _kFallbackLocation,
               zoom: 15.0,
             ),
             onMapCreated: (GoogleMapController controller) {
-              if (!_controller.isCompleted) {
-                _controller.complete(controller);
-              }
+              if (!_controller.isCompleted) _controller.complete(controller);
             },
             padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
-            zoomGesturesEnabled: !_isBottomSheetOpen,
-            scrollGesturesEnabled: !_isBottomSheetOpen,
-            rotateGesturesEnabled: !_isBottomSheetOpen,
-            tiltGesturesEnabled: !_isBottomSheetOpen,
             onTap: _onMapTapped,
             myLocationEnabled: true,
-            myLocationButtonEnabled: true, // 標準ボタンを表示（paddingでずらして調整）
+            myLocationButtonEnabled: true,
             markers: <Marker>{if (_tappedMarker != null) _tappedMarker!},
           ),
           _buildConfirmButtonAndHint(),
@@ -142,8 +169,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       ),
     );
   }
-
-  // --- UIパーツ ---
 
   Widget _buildTopOverlayUI(BuildContext context) {
     return SafeArea(
@@ -207,7 +232,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       right: 24,
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -217,7 +241,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
             ),
             child: const Text(
               '場所をタップ、または「現在地ではじめる」',
-              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -234,19 +257,13 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
               ),
-              textStyle: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
               minimumSize: const Size(double.infinity, 50),
             ),
             onPressed: (_isLoadingLocation || _isBottomSheetOpen)
                 ? null
                 : _onStartNowPressed,
             child: _isLoadingLocation
-                ? const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  )
+                ? const CircularProgressIndicator(color: Colors.white)
                 : Text(_tappedLatLng == null ? '現在地ではじめる' : 'ここ(選択した場所)ではじめる'),
           ),
         ],
@@ -257,7 +274,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   void _onStartNowPressed() async {
     setState(() => _isLoadingLocation = true);
     LatLng? locationToRegister;
-
     if (_tappedLatLng != null) {
       locationToRegister = _tappedLatLng;
     } else {
@@ -279,30 +295,22 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
           CameraUpdate.newLatLngZoom(locationToRegister, 16),
         );
       } catch (e) {
-        if (mounted) {
+        if (mounted)
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('現在地を取得できませんでした: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('現在地取得失敗: $e'), backgroundColor: Colors.red),
           );
-        }
       }
     }
     setState(() => _isLoadingLocation = false);
-    if (locationToRegister != null) {
-      _showRegistrationSheet();
-    }
+    if (locationToRegister != null) _showRegistrationSheet();
   }
 
-  // --- 登録シート表示ロジック ---
   void _showRegistrationSheet() async {
     setState(() {
       _isBottomSheetOpen = true;
       _isRegistrationSuccessful = false;
     });
 
-    // フォームリセット
     _eventNameController.clear();
     _descriptionController.clear();
     _addressController.text = "";
@@ -368,8 +376,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-
-                      // 画像エリア
                       Center(
                         child: InkWell(
                           onTap: () async {
@@ -398,12 +404,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                                       fit: BoxFit.cover,
                                     )
                                   : (_templateImageUrl != null &&
-                                        _templateImageUrl!.isNotEmpty)
-                                  ? DecorationImage(
-                                      image: NetworkImage(_templateImageUrl!),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
+                                            _templateImageUrl!.isNotEmpty
+                                        ? DecorationImage(
+                                            image: NetworkImage(
+                                              _templateImageUrl!,
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null),
                             ),
                             child:
                                 (_imageBytes == null &&
@@ -419,7 +427,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                                       ),
                                       SizedBox(height: 8),
                                       Text(
-                                        'イベント画像を追加',
+                                        '画像を追加',
                                         style: TextStyle(color: Colors.grey),
                                       ),
                                     ],
@@ -428,28 +436,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                           ),
                         ),
                       ),
-                      if (_imageBytes != null ||
-                          (_templateImageUrl != null &&
-                              _templateImageUrl!.isNotEmpty))
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () {
-                              setModalState(() {
-                                _pickedImage = null;
-                                _imageBytes = null;
-                                _templateImageUrl = null;
-                              });
-                            },
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            label: const Text(
-                              '画像を削除',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ),
                       const SizedBox(height: 24),
-
                       TextField(
                         controller: _eventNameController,
                         decoration: const InputDecoration(
@@ -459,7 +446,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
                       DropdownButtonFormField<String>(
                         value: _selectedCategory,
                         decoration: const InputDecoration(
@@ -476,84 +462,108 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                             setModalState(() => _selectedCategory = v!),
                       ),
                       const SizedBox(height: 12),
-
                       TextField(
                         controller: _dateController,
+                        readOnly: true,
                         decoration: const InputDecoration(
                           labelText: '開催日 (必須)',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.calendar_month),
                         ),
-                        readOnly: true,
                         onTap: () async {
-                          DateTime initD = widget.initialDate ?? DateTime.now();
                           final DateTime? picked = await showDatePicker(
                             context: context,
-                            initialDate: initD,
+                            initialDate: targetDate,
                             firstDate: DateTime.now(),
                             lastDate: DateTime(2030),
                             locale: const Locale('ja'),
                           );
-                          if (picked != null) {
+                          if (picked != null)
                             setModalState(
                               () => _dateController.text = _formatDate(picked),
                             );
-                          }
                         },
                       ),
-                      const SizedBox(height: 12),
-
                       CheckboxListTile(
                         title: const Text(
                           "時間は未定",
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         value: _isTimeUndecided,
+                        // ★ ここを setModalState に修正しました
                         onChanged: (v) =>
                             setModalState(() => _isTimeUndecided = v ?? false),
                         controlAffinity: ListTileControlAffinity.leading,
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                       ),
-                      const SizedBox(height: 8),
-
                       Opacity(
                         opacity: _isTimeUndecided ? 0.5 : 1.0,
                         child: IgnorePointer(
                           ignoring: _isTimeUndecided,
-                          child: Row(
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _startTimeController,
-                                  decoration: InputDecoration(
-                                    labelText: '開始時刻',
-                                    border: const OutlineInputBorder(),
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(Icons.update),
-                                      onPressed: () => setModalState(
-                                        () => _startTimeController.text =
-                                            _formatTimeOfDay(TimeOfDay.now()),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _startTimeController,
+                                      readOnly: true,
+                                      onTap: () => _selectTime(
+                                        context,
+                                        _startTimeController,
+                                        setModalState,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        labelText: '開始時刻',
+                                        border: OutlineInputBorder(),
+                                        prefixIcon: Icon(Icons.access_time),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: _endTimeController,
-                                  decoration: const InputDecoration(
-                                    labelText: '終了時刻',
-                                    border: OutlineInputBorder(),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _endTimeController,
+                                      readOnly: true,
+                                      onTap: () => _selectTime(
+                                        context,
+                                        _endTimeController,
+                                        setModalState,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        labelText: '終了時刻',
+                                        border: OutlineInputBorder(),
+                                        prefixIcon: Icon(
+                                          Icons.access_time_filled,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  const Text(
+                                    "クイック終了設定: ",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  _quickTimeBtn("+1h", 1, setModalState),
+                                  const SizedBox(width: 6),
+                                  _quickTimeBtn("+2h", 2, setModalState),
+                                  const SizedBox(width: 6),
+                                  _quickTimeBtn("+3h", 3, setModalState),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 12),
                       TextField(
                         controller: _addressController,
@@ -564,18 +574,16 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
                       TextField(
                         controller: _descriptionController,
                         decoration: const InputDecoration(
-                          labelText: 'イベント詳細（任意）',
+                          labelText: '詳細（任意）',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.description),
                         ),
                         maxLines: 3,
                       ),
                       const SizedBox(height: 20),
-
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 50),
@@ -611,83 +619,88 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
   }
 
+  Widget _quickTimeBtn(String label, int h, StateSetter setModalState) {
+    return InkWell(
+      onTap: () => _addHoursToEndTime(h, setModalState),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.orange.shade800,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showTemplateSelector(StateSetter setModalState) {
-    final String targetAdminId = _testAdminId;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.6,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Text(
-                "テンプレートを選択",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Text(
+              "テンプレートを選択",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StreamBuilder<List<TemplateModel>>(
+                stream: _firestoreService.getTemplatesStream(_testAdminId),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData)
+                    return const Center(child: CircularProgressIndicator());
+                  final templates = snapshot.data!;
+                  return ListView.builder(
+                    itemCount: templates.length,
+                    itemBuilder: (context, index) {
+                      final t = templates[index];
+                      return ListTile(
+                        title: Text(
+                          t.templateName,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(t.eventName),
+                        onTap: () {
+                          setModalState(() {
+                            _eventNameController.text = t.eventName;
+                            _descriptionController.text = t.description;
+                            if (_categories.contains(t.categoryId))
+                              _selectedCategory = t.categoryId;
+                            _templateImageUrl = t.imagePath;
+                          });
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                },
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: StreamBuilder<List<TemplateModel>>(
-                  stream: _firestoreService.getTemplatesStream(targetAdminId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      return const Center(child: CircularProgressIndicator());
-                    final templates = snapshot.data ?? [];
-                    return ListView.builder(
-                      itemCount: templates.length,
-                      itemBuilder: (context, index) {
-                        final template = templates[index];
-                        return ListTile(
-                          title: Text(
-                            template.templateName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(template.eventName),
-                          onTap: () {
-                            setModalState(() {
-                              _eventNameController.text = template.eventName;
-                              _descriptionController.text =
-                                  template.description;
-                              if (_categories.contains(template.categoryId))
-                                _selectedCategory = template.categoryId;
-                              _templateImageUrl = template.imagePath;
-                              _pickedImage = null;
-                              _imageBytes = null;
-                            });
-                            Navigator.pop(context);
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  String _formatTimeOfDay(TimeOfDay time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-  }
-
   void _submitEvent(StateSetter setModalState) async {
-    final eventName = _eventNameController.text;
-    final dateStr = _dateController.text;
-    final startTime = _startTimeController.text;
-    final endTime = _endTimeController.text;
-    final address = _addressController.text;
-
-    if (eventName.isEmpty ||
-        address.isEmpty ||
-        _tappedLatLng == null ||
-        dateStr.isEmpty) {
+    if (_eventNameController.text.isEmpty ||
+        _addressController.text.isEmpty ||
+        _tappedLatLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('必須項目を入力してください'),
@@ -696,37 +709,29 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       );
       return;
     }
-
     setModalState(() => _isLoadingSheet = true);
-
     try {
-      String imageUrl = "";
-      if (_pickedImage != null) {
+      String imageUrl = _templateImageUrl ?? "";
+      if (_pickedImage != null)
         imageUrl = await _storageService.uploadImage(
           _pickedImage!,
           'event_images',
         );
-      } else if (_templateImageUrl != null) {
-        imageUrl = _templateImageUrl!;
-      }
-
-      String eventTimeDisplay = _isTimeUndecided
-          ? "$dateStr (時間未定)"
-          : "$dateStr $startTime - $endTime";
-
+      String timeStr = _isTimeUndecided
+          ? "${_dateController.text} (未定)"
+          : "${_dateController.text} ${_startTimeController.text} - ${_endTimeController.text}";
       await _firestoreService.addEvent(
-        eventName: eventName,
-        eventTime: eventTimeDisplay,
+        eventName: _eventNameController.text,
+        eventTime: timeStr,
         location: _tappedLatLng!,
         description: _descriptionController.text,
         adminId: _testAdminId,
         categoryId: _selectedCategory,
-        address: address,
+        address: _addressController.text,
         eventImage: imageUrl,
       );
-
       _isRegistrationSuccessful = true;
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -738,18 +743,13 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   }
 
   Future<Position> _determinePosition() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return Future.error('ロケーションサービスが無効です。');
-    permission = await Geolocator.checkPermission();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return Future.error('ロケーションサービス無効');
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied)
-        return Future.error('権限が拒否されました。');
+      if (permission == LocationPermission.denied) return Future.error('権限拒否');
     }
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    return await Geolocator.getCurrentPosition();
   }
 }

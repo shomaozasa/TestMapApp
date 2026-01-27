@@ -21,13 +21,14 @@ class FirestoreService {
     required LatLng location,
     required String address,
     required String description,
+    DateTime? eventDateTime, // ★追加: 日時検索用のDateTime
   }) async {
     final collectionRef = _db.collection('events');
     final geoPoint = GeoPoint(location.latitude, location.longitude);
     final now = Timestamp.now();
 
     final data = {
-      'adminId': adminId,
+      'adminId': _userId,
       'categoryId': categoryId,
       'eventName': eventName,
       'eventTime': eventTime,
@@ -37,20 +38,63 @@ class FirestoreService {
       'description': description,
       'createdAt': now,
       'updatedAt': now,
+      // ★ 日時検索を正確に行うために、Timestamp型のフィールドを保持します
+      'eventDate': eventDateTime != null
+          ? Timestamp.fromDate(eventDateTime)
+          : now,
     };
 
     await collectionRef.add(data);
   }
 
-  // --- 2. 全イベント一覧の取得 (ユーザー用) ---
-  Stream<List<EventModel>> getEventsStream() {
-    return _db
+  // --- 2. 全イベント一覧の取得 (ユーザー用: 検索機能付き) ---
+  // ★ 引数を追加してフィルタリングに対応
+  // --- 2. 全イベント一覧の取得 (ユーザー用: 検索機能付き) ---
+  Stream<List<EventModel>> getEventsStream({
+    String? keyword,
+    String? category,
+    DateTime? selectedDate,
+  }) {
+    Query query = _db
         .collection('events')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
+        .orderBy('createdAt', descending: true);
+
+    return query.snapshots().map((snapshot) {
+      List<EventModel> events = snapshot.docs.map((doc) {
         return EventModel.fromFirestore(doc);
+      }).toList();
+
+      return events.where((event) {
+        // カテゴリのチェック
+        // UIから 'すべて' が渡された場合は全表示
+        final bool matchesCategory =
+            (category == null ||
+            category == 'すべて' ||
+            event.categoryId == category);
+
+        // 日時のチェック
+        bool matchesDate = true;
+        if (selectedDate != null) {
+          try {
+            final eventDateTime = DateTime.parse(event.eventTime);
+            matchesDate =
+                eventDateTime.isAfter(selectedDate) ||
+                eventDateTime.isAtSameMomentAs(selectedDate);
+          } catch (e) {
+            matchesDate = false;
+          }
+        }
+
+        // キーワードのチェック
+        bool matchesKeyword = true;
+        if (keyword != null && keyword.isNotEmpty) {
+          final lowKeyword = keyword.toLowerCase();
+          matchesKeyword =
+              event.eventName.toLowerCase().contains(lowKeyword) ||
+              event.description.toLowerCase().contains(lowKeyword);
+        }
+
+        return matchesCategory && matchesDate && matchesKeyword;
       }).toList();
     });
   }
@@ -160,5 +204,17 @@ class FirestoreService {
 
   Future<void> deleteEvent(String eventId) async {
     await _db.collection('events').doc(eventId).delete();
+  }
+
+  // FirestoreService クラス内に追加
+  Stream<Set<String>> getFavoriteIdsStream() {
+    if (_userId.isEmpty) return Stream.value({});
+
+    return _db
+        .collection('users')
+        .doc(_userId)
+        .collection('favorites')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.id).toSet());
   }
 }
