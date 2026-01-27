@@ -3,6 +3,7 @@ import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_map_app/core/models/template_model.dart';
+import 'package:google_map_app/core/models/business_user_model.dart'; // ★追加
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -98,53 +99,84 @@ class FirestoreService {
     });
   }
 
-  // --- 3. お気に入り一覧の取得 (ユーザー別) ---
-  Stream<List<EventModel>> getFavoritesStream() {
+  // --- 3. 事業者フォロー機能 (旧: お気に入り) ---
+
+  // フォローしている事業者一覧を取得 (UserHomeScreenなどで使用)
+  Stream<List<BusinessUserModel>> getFollowedBusinessesStream() {
+    if (_userId.isEmpty) {
+      return Stream.value([]);
+    }
+
     return _db
         .collection('users')
         .doc(_userId)
-        .collection('favorites')
-        .orderBy('createdAt', descending: true)
+        .collection('followed_businesses')
+        .orderBy('followedAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return EventModel.fromFirestore(doc);
-          }).toList();
-        });
+        .asyncMap((snapshot) async {
+      List<BusinessUserModel> businesses = [];
+      for (var doc in snapshot.docs) {
+        // IDを使って事業者情報を取得 (doc.id が businessId)
+        final businessDoc =
+            await _db.collection('businesses').doc(doc.id).get();
+        if (businessDoc.exists) {
+          businesses.add(BusinessUserModel.fromFirestore(businessDoc));
+        }
+      }
+      return businesses;
+    });
   }
 
-  // --- 4. お気に入りの切り替え (追加/削除) ---
-  Future<void> toggleFavorite(EventModel event) async {
-    if (_userId.isEmpty) return; // 未ログイン時は何もしない
+  // フォローの状態を確認するストリーム (ボタンの表示切り替え用)
+  Stream<bool> isBusinessFollowedStream(String businessId) {
+    if (_userId.isEmpty) {
+      return Stream.value(false);
+    }
+    return _db
+        .collection('users')
+        .doc(_userId)
+        .collection('followed_businesses')
+        .doc(businessId)
+        .snapshots()
+        .map((doc) => doc.exists);
+  }
+
+  // フォローの切り替え (追加/削除)
+  Future<void> toggleFollowBusiness(String businessId) async {
+    if (_userId.isEmpty) return;
 
     final docRef = _db
         .collection('users')
         .doc(_userId)
-        .collection('favorites')
-        .doc(event.id);
+        .collection('followed_businesses')
+        .doc(businessId);
 
     final docSnapshot = await docRef.get();
 
     if (docSnapshot.exists) {
+      // フォロー解除
       await docRef.delete();
     } else {
-      await docRef.set(event.toFirestore());
+      // フォロー登録
+      await docRef.set({
+        'followedAt': FieldValue.serverTimestamp(),
+      });
     }
   }
 
-  // --- 5. テンプレート管理機能 (事業者用) ---
+  // --- 4. テンプレート管理機能 (事業者用) ---
   Stream<List<TemplateModel>> getTemplatesStream(String adminId) {
     return _db
         .collection('templates')
         .where('adminId', isEqualTo: adminId)
         .snapshots()
         .map((snapshot) {
-          final List<TemplateModel> templates = snapshot.docs
-              .map((doc) => TemplateModel.fromMap(doc.id, doc.data()))
-              .toList();
-          templates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return templates;
-        });
+      final List<TemplateModel> templates = snapshot.docs
+          .map((doc) => TemplateModel.fromMap(doc.id, doc.data()))
+          .toList();
+      templates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return templates;
+    });
   }
 
   Future<void> addTemplate(TemplateModel template) async {
@@ -155,19 +187,19 @@ class FirestoreService {
     await _db.collection('templates').doc(templateId).delete();
   }
 
-  // --- 6. スケジュール管理用 ---
+  // --- 5. スケジュール管理用 (事業者用) ---
   Stream<List<EventModel>> getFutureEventsStream(String adminId) {
     return _db
         .collection('events')
         .where('adminId', isEqualTo: adminId)
         .snapshots()
         .map((snapshot) {
-          final events = snapshot.docs
-              .map((doc) => EventModel.fromFirestore(doc))
-              .toList();
-          events.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return events;
-        });
+      final events = snapshot.docs
+          .map((doc) => EventModel.fromFirestore(doc))
+          .toList();
+      events.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return events;
+    });
   }
 
   Future<void> deleteEvent(String eventId) async {

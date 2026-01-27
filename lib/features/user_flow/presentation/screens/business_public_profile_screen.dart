@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/core/models/event_model.dart';
-// URLランチャーなどが将来必要になるかもしれませんが、今回は表示のみ実装します
+import 'package:google_map_app/core/service/firestore_service.dart'; // ★追加
+import 'package:firebase_auth/firebase_auth.dart'; // ★追加
 
 class BusinessPublicProfileScreen extends StatelessWidget {
-  final String adminId; // このIDを使ってデータを取得します
+  final String adminId;
+  final FirestoreService _firestoreService = FirestoreService(); // ★追加
 
-  const BusinessPublicProfileScreen({super.key, required this.adminId});
+  BusinessPublicProfileScreen({super.key, required this.adminId});
 
   @override
   Widget build(BuildContext context) {
@@ -17,20 +19,41 @@ class BusinessPublicProfileScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
+        actions: [
+          // ★ フォローボタンをAppBarにも追加
+          StreamBuilder<bool>(
+            stream: _firestoreService.isBusinessFollowedStream(adminId),
+            builder: (context, snapshot) {
+              final isFollowed = snapshot.data ?? false;
+              return IconButton(
+                icon: Icon(
+                  isFollowed ? Icons.favorite : Icons.favorite_border,
+                  color: isFollowed ? Colors.red : Colors.grey,
+                ),
+                onPressed: () async {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await _firestoreService.toggleFollowBusiness(adminId);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('フォローするにはログインが必要です')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. 事業者基本情報 ---
-            _buildBusinessInfo(),
-
+            _buildBusinessInfo(context),
             const Divider(thickness: 8, color: Color(0xFFF5F5F5)),
-
-            // --- 2. この事業者のイベント/予定一覧 ---
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: const Text(
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
                 '開催予定のイベント',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
@@ -42,10 +65,10 @@ class BusinessPublicProfileScreen extends StatelessWidget {
     );
   }
 
-  // 事業者情報をFirestoreから取得して表示
-  Widget _buildBusinessInfo() {
+  Widget _buildBusinessInfo(BuildContext context) {
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('businesses').doc(adminId).get(),
+      future:
+          FirebaseFirestore.instance.collection('businesses').doc(adminId).get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
@@ -60,26 +83,51 @@ class BusinessPublicProfileScreen extends StatelessWidget {
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              // アイコン
               CircleAvatar(
                 radius: 50,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: (business.iconImage != null && business.iconImage!.isNotEmpty)
-                    ? NetworkImage(business.iconImage!)
-                    : null,
-                child: (business.iconImage == null || business.iconImage!.isEmpty)
-                    ? const Icon(Icons.store, size: 50, color: Colors.grey)
-                    : null,
+                backgroundImage:
+                    (business.iconImage != null && business.iconImage!.isNotEmpty)
+                        ? NetworkImage(business.iconImage!)
+                        : null,
+                child:
+                    (business.iconImage == null || business.iconImage!.isEmpty)
+                        ? const Icon(Icons.store, size: 50, color: Colors.grey)
+                        : null,
               ),
               const SizedBox(height: 16),
-              // 店舗名
               Text(
                 business.adminName,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              // カテゴリタグ
+              
+              // ★ 大きなフォローボタン
+              StreamBuilder<bool>(
+                stream: _firestoreService.isBusinessFollowedStream(adminId),
+                builder: (context, snapshot) {
+                  final isFollowed = snapshot.data ?? false;
+                  return ElevatedButton.icon(
+                    onPressed: () async {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        await _firestoreService.toggleFollowBusiness(adminId);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isFollowed ? Colors.white : Colors.orange,
+                      foregroundColor: isFollowed ? Colors.orange : Colors.white,
+                      side: const BorderSide(color: Colors.orange),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
+                    icon: Icon(isFollowed ? Icons.check : Icons.add),
+                    label: Text(isFollowed ? 'フォロー中' : 'フォローする'),
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -88,22 +136,22 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                 ),
                 child: Text(
                   business.adminCategory,
-                  style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.orange.shade800, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 24),
-              // 自己紹介
               if (business.description.isNotEmpty) ...[
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     business.description,
-                    style: const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
+                    style: const TextStyle(
+                        fontSize: 15, height: 1.5, color: Colors.black87),
                   ),
                 ),
                 const SizedBox(height: 24),
               ],
-              // SNSリンクなどの情報（あれば表示）
               _buildInfoRow(Icons.language, business.homepage, 'ホームページ'),
               _buildInfoRow(Icons.alternate_email, business.instagramUrl, 'Instagram'),
               _buildInfoRow(Icons.phone, business.phoneNumber, '電話番号'),
@@ -124,7 +172,7 @@ class BusinessPublicProfileScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              value, // 本来はここをタップしてURLを開く処理などを入れます
+              value,
               style: const TextStyle(fontSize: 14, color: Colors.blue),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -135,12 +183,11 @@ class BusinessPublicProfileScreen extends StatelessWidget {
     );
   }
 
-  // この事業者のイベント一覧を表示
   Widget _buildBusinessEvents() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('events')
-          .where('adminId', isEqualTo: adminId) // ★ adminIdでフィルタリング
+          .where('adminId', isEqualTo: adminId)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -158,7 +205,7 @@ class BusinessPublicProfileScreen extends StatelessWidget {
 
         return ListView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(), // 全体スクロールに任せる
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final event = EventModel.fromFirestore(docs[index]);
@@ -181,7 +228,8 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                   ),
                   child: event.eventImage.isEmpty ? const Icon(Icons.event) : null,
                 ),
-                title: Text(event.eventName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(event.eventName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text('${event.eventTime}\n${event.address}'),
                 isThreeLine: true,
               ),

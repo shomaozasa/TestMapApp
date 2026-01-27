@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_map_app/core/models/event_model.dart';
+import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
+import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 
 class FavoriteListScreen extends StatelessWidget {
   const FavoriteListScreen({super.key});
@@ -11,30 +12,30 @@ class FavoriteListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('お気に入り一覧'),
+        title: const Text('フォロー中の事業者'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
-      body: StreamBuilder<List<EventModel>>(
-        // FirestoreServiceに getFavoritesStream が実装されている前提です
-        stream: firestoreService.getFavoritesStream(),
+      body: StreamBuilder<List<BusinessUserModel>>(
+        // ★ 変更: フォロー事業者一覧を取得
+        stream: firestoreService.getFollowedBusinessesStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final favoriteEvents = snapshot.data ?? [];
+          final followedBusinesses = snapshot.data ?? [];
 
-          if (favoriteEvents.isEmpty) {
-            return const Center(child: Text('お気に入りはまだありません'));
+          if (followedBusinesses.isEmpty) {
+            return const Center(child: Text('まだフォローしている事業者はいません'));
           }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: favoriteEvents.length,
+            itemCount: followedBusinesses.length,
             itemBuilder: (context, index) {
-              final event = favoriteEvents[index];
+              final business = followedBusinesses[index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 16),
                 elevation: 2,
@@ -43,47 +44,51 @@ class FavoriteListScreen extends StatelessWidget {
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(12),
-                  leading: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
-                      image: event.eventImage.isNotEmpty
-                          ? DecorationImage(
-                              image: NetworkImage(event.eventImage),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: event.eventImage.isEmpty
-                        ? const Icon(Icons.image, color: Colors.grey)
+                  leading: CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: (business.iconImage != null && business.iconImage!.isNotEmpty)
+                        ? NetworkImage(business.iconImage!)
+                        : null,
+                    child: (business.iconImage == null || business.iconImage!.isEmpty)
+                        ? const Icon(Icons.store, color: Colors.grey)
                         : null,
                   ),
                   title: Text(
-                    event.eventName,
+                    business.adminName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(event.eventTime, style: const TextStyle(fontSize: 12)),
-                      Text(
-                        event.address,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
+                  subtitle: Text(
+                    business.adminCategory,
+                    style: TextStyle(color: Colors.orange.shade800),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.favorite, color: Colors.red),
-                    onPressed: () async {
-                      // 一覧画面からも削除可能
-                      await firestoreService.toggleFavorite(event);
+                  trailing: ElevatedButton(
+                    onPressed: () {
+                      // プロフィールへ遷移
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BusinessPublicProfileScreen(adminId: business.adminId),
+                        ),
+                      );
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(60, 30),
+                    ),
+                    child: const Text('見る', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BusinessPublicProfileScreen(adminId: business.adminId),
+                      ),
+                    );
+                  },
                 ),
               );
             },
