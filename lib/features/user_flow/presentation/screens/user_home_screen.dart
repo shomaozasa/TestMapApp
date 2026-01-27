@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math'; // ★追加: ズーム計算用
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,6 +13,7 @@ import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
+import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -31,10 +33,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   EventModel? _selectedEvent;
   late Stream<List<EventModel>> _eventsStream;
 
+  // 検索条件
   String _searchKeyword = "";
   String _searchCategory = "すべて";
   DateTime? _searchDate;
-  double _searchDistance = 5.0;
+  // ★ 修正: デフォルトを1.0kmに変更（5kmだと初期画面で真っ青になるため）
+  double _searchDistance = 1.0; 
 
   @override
   void initState() {
@@ -49,12 +53,32 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
       final newLatLng = LatLng(position.latitude, position.longitude);
-      if (mounted) setState(() => _currentPosition = newLatLng);
-      final GoogleMapController controller = await _controller.future;
-      controller.animateCamera(CameraUpdate.newLatLngZoom(newLatLng, 14.5));
+      
+      if (mounted) {
+        setState(() => _currentPosition = newLatLng);
+        // ★ 初期表示時もサークルに合わせてズーム
+        _zoomToFitCircle(newLatLng, _searchDistance);
+      }
     } catch (e) {
       debugPrint('Location Error: $e');
     }
+  }
+
+  // ★ 追加: 指定した中心と半径(km)が収まるようにカメラを移動する関数
+  Future<void> _zoomToFitCircle(LatLng center, double radiusKm) async {
+    final GoogleMapController controller = await _controller.future;
+    
+    // 半径から表示範囲（Bounds）を計算
+    double radiusLat = radiusKm / 111.32; // 緯度1度あたりのkm
+    double radiusLng = radiusKm / (40075.0 * cos(center.latitude * pi / 180) / 360);
+
+    LatLng southwest = LatLng(center.latitude - radiusLat, center.longitude - radiusLng);
+    LatLng northeast = LatLng(center.latitude + radiusLat, center.longitude + radiusLng);
+
+    LatLngBounds bounds = LatLngBounds(southwest: southwest, northeast: northeast);
+
+    // 円が画面に収まるようにアニメーション（paddingで少し余裕を持たせる）
+    controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
   }
 
   void _applySearch({
@@ -85,6 +109,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         selectedDate: _searchDate,
       );
     });
+
+    // ★ 修正: 検索適用時に、その距離に合わせてカメラをズームする
+    if (_currentPosition != null) {
+      _zoomToFitCircle(_currentPosition!, distance);
+    }
   }
 
   void _showSearchPanel() {
@@ -131,7 +160,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                             setPanelState(() {
                               keywordController.clear();
                               tempCategory = 'すべて';
-                              tempDistance = 5.0;
+                              tempDistance = 1.0; // リセット時も1kmへ
                               tempDate = null;
                             });
                           },
@@ -198,18 +227,31 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       },
                     ),
                     const Divider(),
-                    Text(
-                      '距離: ${tempDistance.toInt()} km 以内',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    // スライダー部分
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '距離範囲',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${tempDistance.toInt()} km 以内',
+                          style: const TextStyle(
+                              color: Colors.blue, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                     Slider(
                       value: tempDistance,
                       min: 1,
                       max: 50,
-                      divisions: 10,
+                      divisions: 49,
+                      label: '${tempDistance.toInt()} km',
                       onChanged: (val) =>
                           setPanelState(() => tempDistance = val),
                     ),
+                    
                     const Text(
                       'カテゴリ',
                       style: TextStyle(fontWeight: FontWeight.bold),
@@ -278,6 +320,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         stream: _eventsStream,
         builder: (context, eventSnapshot) {
           List<EventModel> events = eventSnapshot.data ?? [];
+          
           if (_currentPosition != null) {
             events = events.where((e) {
               double dist = Geolocator.distanceBetween(
@@ -305,6 +348,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             children: [
               GoogleMap(
                 mapType: MapType.normal,
+                // 初期位置は現在地がなければデフォルトへ
                 initialCameraPosition: CameraPosition(
                   target: _currentPosition ?? _kFallbackLocation,
                   zoom: 14.5,
@@ -312,11 +356,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
                 onMapCreated: (GoogleMapController controller) {
-                  if (!_controller.isCompleted)
+                  if (!_controller.isCompleted) {
                     _controller.complete(controller);
+                  }
                 },
                 onTap: (_) => setState(() => _selectedEvent = null),
                 markers: markers,
+                
+                // 別ファイルからサークル生成
+                circles: createSearchRadiusCircle(
+                  center: _currentPosition,
+                  radiusKm: _searchDistance,
+                ),
+                
                 padding: EdgeInsets.only(
                   bottom: _selectedEvent != null ? 280 : 100,
                 ),
@@ -374,8 +426,29 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        event.categoryId.isNotEmpty ? event.categoryId : '未分類',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Text(
                       event.eventName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -434,6 +507,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                     child: SizedBox(
                       height: 200,
+                      width: double.infinity,
                       child: event.eventImage.isNotEmpty
                           ? Image.network(event.eventImage, fit: BoxFit.cover)
                           : const Icon(Icons.image, size: 50),
@@ -495,26 +569,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   child: const Icon(Icons.arrow_back, color: Colors.black87),
                 ),
               ),
-              // Positioned(
-              //   top: 20,
-              //   right: 20,
-              //   child: StreamBuilder<Set<String>>(
-              //     stream: _firestoreService.getFavoriteIdsStream(),
-              //     builder: (context, snapshot) {
-              //       final isFav = (snapshot.data ?? {}).contains(event.adminId);
-              //       return FloatingActionButton.small(
-              //         heroTag: 'favBtnDetail',
-              //         backgroundColor: Colors.white,
-              //         onPressed: () =>
-              //             _firestoreService.toggleFollowBusiness(event.adminId),
-              //         child: Icon(
-              //           isFav ? Icons.favorite : Icons.favorite_border,
-              //           color: isFav ? Colors.red : Colors.grey,
-              //         ),
-              //       );
-              //     },
-              //   ),
-              // ),
             ],
           ),
         );
@@ -530,8 +584,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           .doc(adminId)
           .get(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists)
+        if (!snapshot.hasData || !snapshot.data!.exists) {
           return const SizedBox.shrink();
+        }
         final business = BusinessUserModel.fromFirestore(snapshot.data!);
         return InkWell(
           onTap: () => Navigator.push(
@@ -550,13 +605,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundImage:
-                      (business.iconImage != null &&
+                  backgroundImage: (business.iconImage != null &&
                           business.iconImage!.isNotEmpty)
                       ? NetworkImage(business.iconImage!)
                       : null,
-                  child:
-                      (business.iconImage == null ||
+                  child: (business.iconImage == null ||
                           business.iconImage!.isEmpty)
                       ? const Icon(Icons.store)
                       : null,
@@ -585,12 +638,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                       onPressed: () =>
                           _firestoreService.toggleFollowBusiness(adminId),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isFollowed
-                            ? Colors.white
-                            : Colors.orange,
-                        foregroundColor: isFollowed
-                            ? Colors.orange
-                            : Colors.white,
+                        backgroundColor:
+                            isFollowed ? Colors.white : Colors.orange,
+                        foregroundColor:
+                            isFollowed ? Colors.orange : Colors.white,
                         side: const BorderSide(color: Colors.orange),
                         minimumSize: const Size(60, 32),
                       ),
@@ -649,7 +700,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             icon: Icons.store_mall_directory_outlined,
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
+              MaterialPageRoute(
+                builder: (_) => const FavoriteListScreen(),
+              ),
             ),
           ),
           _buildCircleButton(icon: Icons.home, onPressed: () {}),
@@ -657,13 +710,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             icon: Icons.person_outline,
             onPressed: () {
               final user = FirebaseAuth.instance.currentUser;
-              if (user != null)
+              if (user != null) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => UserProfileScreen(userId: user.uid),
                   ),
                 );
+              }
             },
           ),
           _buildCircleButton(icon: Icons.search, onPressed: _showSearchPanel),
