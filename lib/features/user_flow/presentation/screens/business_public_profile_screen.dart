@@ -20,29 +20,29 @@ class BusinessPublicProfileScreen extends StatelessWidget {
         foregroundColor: Colors.black,
         elevation: 0.5,
         actions: [
-          // ★ フォローボタンをAppBarにも追加
-          StreamBuilder<bool>(
-            stream: _firestoreService.isBusinessFollowedStream(adminId),
-            builder: (context, snapshot) {
-              final isFollowed = snapshot.data ?? false;
-              return IconButton(
-                icon: Icon(
-                  isFollowed ? Icons.favorite : Icons.favorite_border,
-                  color: isFollowed ? Colors.red : Colors.grey,
-                ),
-                onPressed: () async {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    await _firestoreService.toggleFollowBusiness(adminId);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('フォローするにはログインが必要です')),
-                    );
-                  }
-                },
-              );
-            },
-          ),
+          // // ★ フォローボタンをAppBarにも追加
+          // StreamBuilder<bool>(
+          //   stream: _firestoreService.isBusinessFollowedStream(adminId),
+          //   builder: (context, snapshot) {
+          //     final isFollowed = snapshot.data ?? false;
+          //     return IconButton(
+          //       icon: Icon(
+          //         isFollowed ? Icons.favorite : Icons.favorite_border,
+          //         color: isFollowed ? Colors.red : Colors.grey,
+          //       ),
+          //       onPressed: () async {
+          //         final user = FirebaseAuth.instance.currentUser;
+          //         if (user != null) {
+          //           await _firestoreService.toggleFollowBusiness(adminId);
+          //         } else {
+          //           ScaffoldMessenger.of(context).showSnackBar(
+          //             const SnackBar(content: Text('フォローするにはログインが必要です')),
+          //           );
+          //         }
+          //       },
+          //     );
+          //   },
+          // ),
         ],
       ),
       body: SingleChildScrollView(
@@ -67,14 +67,24 @@ class BusinessPublicProfileScreen extends StatelessWidget {
 
   Widget _buildBusinessInfo(BuildContext context) {
     return FutureBuilder<DocumentSnapshot>(
-      future:
-          FirebaseFirestore.instance.collection('businesses').doc(adminId).get(),
+      future: FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(adminId)
+          .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Padding(padding: EdgeInsets.all(20), child: Text("事業者データが見つかりません"));
+          return const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text("事業者データが見つかりません"),
+          );
         }
 
         final business = BusinessUserModel.fromFirestore(snapshot.data!);
@@ -87,22 +97,26 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                 radius: 50,
                 backgroundColor: Colors.grey.shade200,
                 backgroundImage:
-                    (business.iconImage != null && business.iconImage!.isNotEmpty)
-                        ? NetworkImage(business.iconImage!)
-                        : null,
+                    (business.iconImage != null &&
+                        business.iconImage!.isNotEmpty)
+                    ? NetworkImage(business.iconImage!)
+                    : null,
                 child:
                     (business.iconImage == null || business.iconImage!.isEmpty)
-                        ? const Icon(Icons.store, size: 50, color: Colors.grey)
-                        : null,
+                    ? const Icon(Icons.store, size: 50, color: Colors.grey)
+                    : null,
               ),
               const SizedBox(height: 16),
               Text(
                 business.adminName,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              
+
               // ★ 大きなフォローボタン
               StreamBuilder<bool>(
                 stream: _firestoreService.isBusinessFollowedStream(adminId),
@@ -116,20 +130,29 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isFollowed ? Colors.white : Colors.orange,
-                      foregroundColor: isFollowed ? Colors.orange : Colors.white,
+                      backgroundColor: isFollowed
+                          ? Colors.white
+                          : Colors.orange,
+                      foregroundColor: isFollowed
+                          ? Colors.orange
+                          : Colors.white,
                       side: const BorderSide(color: Colors.orange),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
                     icon: Icon(isFollowed ? Icons.check : Icons.add),
                     label: Text(isFollowed ? 'フォロー中' : 'フォローする'),
                   );
                 },
               ),
-              
+
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.shade100,
                   borderRadius: BorderRadius.circular(20),
@@ -137,7 +160,9 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                 child: Text(
                   business.adminCategory,
                   style: TextStyle(
-                      color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -147,13 +172,20 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                   child: Text(
                     business.description,
                     style: const TextStyle(
-                        fontSize: 15, height: 1.5, color: Colors.black87),
+                      fontSize: 15,
+                      height: 1.5,
+                      color: Colors.black87,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
               ],
               _buildInfoRow(Icons.language, business.homepage, 'ホームページ'),
-              _buildInfoRow(Icons.alternate_email, business.instagramUrl, 'Instagram'),
+              _buildInfoRow(
+                Icons.alternate_email,
+                business.instagramUrl,
+                'Instagram',
+              ),
               _buildInfoRow(Icons.phone, business.phoneNumber, '電話番号'),
             ],
           ),
@@ -199,7 +231,10 @@ class BusinessPublicProfileScreen extends StatelessWidget {
         if (docs.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(16.0),
-            child: Text('現在登録されているイベントはありません。', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              '現在登録されているイベントはありません。',
+              style: TextStyle(color: Colors.grey),
+            ),
           );
         }
 
@@ -226,10 +261,14 @@ class BusinessPublicProfileScreen extends StatelessWidget {
                           )
                         : null,
                   ),
-                  child: event.eventImage.isEmpty ? const Icon(Icons.event) : null,
+                  child: event.eventImage.isEmpty
+                      ? const Icon(Icons.event)
+                      : null,
                 ),
-                title: Text(event.eventName,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(
+                  event.eventName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text('${event.eventTime}\n${event.address}'),
                 isThreeLine: true,
               ),

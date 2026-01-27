@@ -11,7 +11,6 @@ import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
-// ★ 追加: 利用者プロフィール画面のインポート
 import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
@@ -41,10 +40,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   void initState() {
     super.initState();
     _eventsStream = _firestoreService.getEventsStream();
-    final user = FirebaseAuth.instance.currentUser;
-    _favoritesStream = user != null
-        ? _firestoreService.getFavoritesStream()
-        : Stream.value([]);
     _initializeLocation();
   }
 
@@ -68,28 +63,25 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     required DateTime? date,
     required double distance,
   }) {
-    // 日本語からDB用の英語に変換するマップ
     final categoryMap = {
       'グルメ': 'Food',
       'ライブ': 'Music',
-      '体験': 'Shop', // または対応する英語
+      '体験': 'Shop',
       '展示': 'Art',
       'すべて': 'すべて',
     };
 
-    // 変換後のカテゴリ（マップにない場合は Other にする）
     final String dbCategory = categoryMap[category] ?? 'Other';
 
     setState(() {
       _searchKeyword = keyword;
-      _searchCategory = category; // UI表示用には日本語を保持
+      _searchCategory = category;
       _searchDate = date;
       _searchDistance = distance;
 
-      // FirestoreServiceには英語の dbCategory を渡す
       _eventsStream = _firestoreService.getEventsStream(
         keyword: _searchKeyword,
-        category: dbCategory, // ここを英語にする
+        category: dbCategory,
         selectedDate: _searchDate,
       );
     });
@@ -298,7 +290,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             }).toList();
           }
 
-          // マーカーの作成
           final Set<Marker> markers = events.map((event) {
             return Marker(
               markerId: MarkerId(event.id),
@@ -306,17 +297,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 event.location.latitude,
                 event.location.longitude,
               ),
-              onTap: () {
-                setState(() {
-                  _selectedEvent = event;
-                });
-              },
+              onTap: () => setState(() => _selectedEvent = event),
             );
           }).toSet();
 
           return Stack(
             children: [
-              // 1. Google Map
               GoogleMap(
                 mapType: MapType.normal,
                 initialCameraPosition: CameraPosition(
@@ -326,22 +312,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
                 onMapCreated: (GoogleMapController controller) {
-                  if (!_controller.isCompleted) {
+                  if (!_controller.isCompleted)
                     _controller.complete(controller);
-                  }
                 },
-                onTap: (_) {
-                  if (_selectedEvent != null) {
-                    setState(() => _selectedEvent = null);
-                  }
-                },
+                onTap: (_) => setState(() => _selectedEvent = null),
                 markers: markers,
                 padding: EdgeInsets.only(
                   bottom: _selectedEvent != null ? 280 : 100,
                 ),
               ),
-
-              // 2. イベント詳細カード (ポップアップ)
               if (_selectedEvent != null)
                 Positioned(
                   bottom: 120,
@@ -349,8 +328,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   right: 20,
                   child: _buildEventCard(_selectedEvent!),
                 ),
-
-              // 3. ボトムバー
               Positioned(
                 bottom: 30,
                 left: 20,
@@ -384,17 +361,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 width: 120,
                 height: double.infinity,
                 child: event.eventImage.isNotEmpty
-                    ? Image.network(
-                        event.eventImage,
-                        fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, _) => Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.broken_image, color: Colors.grey),
-                        ),
-                      )
+                    ? Image.network(event.eventImage, fit: BoxFit.cover)
                     : Container(
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                        child: const Icon(Icons.image, size: 40),
                       ),
               ),
             ),
@@ -404,55 +374,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        event.categoryId.isNotEmpty ? event.categoryId : '未分類',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.orange.shade800,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
                     Text(
                       event.eventName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.black54,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            event.eventTime,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      event.eventTime,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
                     ),
                     const Spacer(),
                     const Align(
@@ -468,7 +403,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                   ],
                 ),
-                onPressed: () => _firestoreService.toggleFavorite(event),
               ),
             ),
           ],
@@ -477,7 +411,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // ★ 詳細表示メソッド（戻るボタンとお気に入りボタンを追加）
   void _showEventDetails(EventModel event) {
     showModalBottomSheet(
       context: context,
@@ -490,10 +423,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
             children: [
-              Stack(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
@@ -501,119 +434,87 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ),
                     child: SizedBox(
                       height: 200,
-                      width: double.infinity,
                       child: event.eventImage.isNotEmpty
-                          ? Image.network(
-                              event.eventImage,
-                              fit: BoxFit.cover,
-                            )
-                          : const Center(
-                              child: Icon(Icons.image, size: 50, color: Colors.grey),
-                            ),
+                          ? Image.network(event.eventImage, fit: BoxFit.cover)
+                          : const Icon(Icons.image, size: 50),
                     ),
                   ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.black54,
-                      child: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event.eventName,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _buildBusinessLinkWithFollow(event.adminId),
+                          const SizedBox(height: 24),
+                          _buildInfoRow(
+                            Icons.access_time,
+                            '日時',
+                            event.eventTime,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            Icons.location_on_outlined,
+                            '場所',
+                            event.address,
+                          ),
+                          const Divider(height: 40),
+                          const Text(
+                            '詳細情報',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            event.description,
+                            style: const TextStyle(fontSize: 16, height: 1.5),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.eventName,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // 事業者情報 + フォローボタン
-                      _buildBusinessLinkWithFollow(event.adminId),
-                      const SizedBox(height: 24),
-                      _buildInfoRow(
-                        Icons.access_time,
-                        '日時',
-                        event.eventTime,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.location_on_outlined,
-                        '場所',
-                        event.address,
-                      ),
-                      const Divider(height: 40),
-                      const Text(
-                        '詳細情報',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        event.description,
-                        style: const TextStyle(fontSize: 16, height: 1.5),
-                      ),
-                    ],
-                  ),
+              Positioned(
+                top: 20,
+                left: 20,
+                child: FloatingActionButton.small(
+                  heroTag: 'backBtnDetail',
+                  backgroundColor: Colors.white,
+                  onPressed: () => Navigator.pop(context),
+                  child: const Icon(Icons.arrow_back, color: Colors.black87),
                 ),
               ),
-            ),
-            // --- 戻るボタン ---
-            Positioned(
-              top: 20,
-              left: 20,
-              child: FloatingActionButton.small(
-                heroTag: 'backBtnDetail',
-                backgroundColor: Colors.white,
-                onPressed: () => Navigator.pop(context),
-                child: const Icon(Icons.arrow_back, color: Colors.black87),
-              ),
-            ),
-            // --- イイネボタン (IDセットで判定) ---
-            Positioned(
-              top: 20,
-              right: 20,
-              child: StreamBuilder<Set<String>>(
-                stream: _firestoreService.getFavoriteIdsStream(), // ★IDのセットを取得
-                builder: (context, snapshot) {
-                  final favoriteIds = snapshot.data ?? {};
-                  // セットの中にこのイベントIDが含まれているかチェック
-                  final bool isFav = favoriteIds.contains(event.id);
-
-                  return FloatingActionButton.small(
-                    heroTag: 'favBtnDetail',
-                    backgroundColor: Colors.white,
-                    onPressed: () async {
-                      await _firestoreService.toggleFavorite(event);
-                    },
-                    child: Icon(
-                      isFav ? Icons.favorite : Icons.favorite_border,
-                      color: isFav ? Colors.red : Colors.grey,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBusinessLink(String adminId) {
+              // Positioned(
+              //   top: 20,
+              //   right: 20,
+              //   child: StreamBuilder<Set<String>>(
+              //     stream: _firestoreService.getFavoriteIdsStream(),
+              //     builder: (context, snapshot) {
+              //       final isFav = (snapshot.data ?? {}).contains(event.adminId);
+              //       return FloatingActionButton.small(
+              //         heroTag: 'favBtnDetail',
+              //         backgroundColor: Colors.white,
+              //         onPressed: () =>
+              //             _firestoreService.toggleFollowBusiness(event.adminId),
+              //         child: Icon(
+              //           isFav ? Icons.favorite : Icons.favorite_border,
+              //           color: isFav ? Colors.red : Colors.grey,
+              //         ),
+              //       );
+              //     },
+              //   ),
+              // ),
             ],
           ),
         );
@@ -621,10 +522,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // 事業者リンクにフォローボタンを追加
   Widget _buildBusinessLinkWithFollow(String adminId) {
     if (adminId.isEmpty) return const SizedBox.shrink();
-    
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
           .collection('businesses')
@@ -633,88 +532,78 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists)
           return const SizedBox.shrink();
-        
         final business = BusinessUserModel.fromFirestore(snapshot.data!);
-        
-        return Column(
-          children: [
-            InkWell(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BusinessPublicProfileScreen(adminId: adminId),
-                ),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundImage: (business.iconImage != null &&
-                              business.iconImage!.isNotEmpty)
-                          ? NetworkImage(business.iconImage!)
-                          : null,
-                      child: (business.iconImage == null ||
-                              business.iconImage!.isEmpty)
-                          ? const Icon(Icons.store)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            business.adminName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Text(
-                            'プロフィールを見る >',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // フォローボタン (StreamBuilderでリアルタイム監視)
-                    StreamBuilder<bool>(
-                      stream: _firestoreService.isBusinessFollowedStream(adminId),
-                      builder: (context, snapshot) {
-                        final isFollowed = snapshot.data ?? false;
-                        return ElevatedButton(
-                          onPressed: () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null) {
-                              await _firestoreService.toggleFollowBusiness(adminId);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('フォローするにはログインが必要です')),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isFollowed ? Colors.white : Colors.orange,
-                            foregroundColor: isFollowed ? Colors.orange : Colors.white,
-                            side: const BorderSide(color: Colors.orange),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            minimumSize: const Size(60, 32),
-                          ),
-                          child: Text(
-                            isFollowed ? 'フォロー中' : 'フォロー',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusinessPublicProfileScreen(adminId: adminId),
             ),
-          ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundImage:
+                      (business.iconImage != null &&
+                          business.iconImage!.isNotEmpty)
+                      ? NetworkImage(business.iconImage!)
+                      : null,
+                  child:
+                      (business.iconImage == null ||
+                          business.iconImage!.isEmpty)
+                      ? const Icon(Icons.store)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        business.adminName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'プロフィールを見る >',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                StreamBuilder<bool>(
+                  stream: _firestoreService.isBusinessFollowedStream(adminId),
+                  builder: (context, snapshot) {
+                    final isFollowed = snapshot.data ?? false;
+                    return ElevatedButton(
+                      onPressed: () =>
+                          _firestoreService.toggleFollowBusiness(adminId),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isFollowed
+                            ? Colors.white
+                            : Colors.orange,
+                        foregroundColor: isFollowed
+                            ? Colors.orange
+                            : Colors.white,
+                        side: const BorderSide(color: Colors.orange),
+                        minimumSize: const Size(60, 32),
+                      ),
+                      child: Text(
+                        isFollowed ? 'フォロー中' : 'フォロー',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -756,43 +645,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             icon: Icons.close,
             onPressed: () => setState(() => _selectedEvent = null),
           ),
-          // フォローリスト一覧（ストアアイコン）
           _buildCircleButton(
-            icon: Icons.store_mall_directory_outlined, 
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FavoriteListScreen(),
-                ),
-              );
-            },
+            icon: Icons.store_mall_directory_outlined,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
+            ),
           ),
-          _buildCircleButton(
-            icon: Icons.home,
-            onPressed: () {},
-          ),
-          // ★ 修正: 利用者プロフィール画面へ遷移
+          _buildCircleButton(icon: Icons.home, onPressed: () {}),
           _buildCircleButton(
             icon: Icons.person_outline,
             onPressed: () {
               final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
+              if (user != null)
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => UserProfileScreen(userId: user.uid),
+                    builder: (_) => UserProfileScreen(userId: user.uid),
                   ),
                 );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ログイン情報が取得できません')),
-                );
-              }
             },
           ),
           _buildCircleButton(icon: Icons.search, onPressed: _showSearchPanel),
-          _buildCircleButton(icon: Icons.person_outline, onPressed: () {}),
         ],
       ),
     );
