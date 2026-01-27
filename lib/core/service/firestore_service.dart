@@ -1,16 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/event_model.dart';
-// EventModelでGeoPointを使っているため、google_maps_flutterのインポートは不要な場合もありますが
-// 念のため記述しておきます。
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_map_app/core/models/template_model.dart'; // ★追加: テンプレートモデル
+import 'package:google_map_app/core/models/template_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // // ★ テスト用の固定ユーザーID（本番では FirebaseAuth.instance.currentUser.uid を使用）
-  // final String _userId = 'test_user_id';
 
   User? get user => FirebaseAuth.instance.currentUser;
   String get _userId => user?.uid ?? '';
@@ -25,13 +20,14 @@ class FirestoreService {
     required LatLng location,
     required String address,
     required String description,
+    DateTime? eventDateTime, // ★追加: 日時検索用のDateTime
   }) async {
     final collectionRef = _db.collection('events');
     final geoPoint = GeoPoint(location.latitude, location.longitude);
     final now = Timestamp.now();
 
     final data = {
-      'adminId': adminId,
+      'adminId': _userId,
       'categoryId': categoryId,
       'eventName': eventName,
       'eventTime': eventTime,
@@ -41,25 +37,65 @@ class FirestoreService {
       'description': description,
       'createdAt': now,
       'updatedAt': now,
-      // 日付検索用に DateTime型のフィールドも持たせておくと便利ですが、
-      // ここでは既存実装に合わせて createdAt を使用します。
-      // 必要であれば 'eventDate': Timestamp.fromDate(...) などを追加してください。
+      // ★ 日時検索を正確に行うために、Timestamp型のフィールドを保持します
+      'eventDate': eventDateTime != null
+          ? Timestamp.fromDate(eventDateTime)
+          : now,
     };
 
     await collectionRef.add(data);
   }
 
-  // --- 2. 全イベント一覧の取得 (ユーザー用) ---
-  Stream<List<EventModel>> getEventsStream() {
-    return _db
+  // --- 2. 全イベント一覧の取得 (ユーザー用: 検索機能付き) ---
+  // ★ 引数を追加してフィルタリングに対応
+  // --- 2. 全イベント一覧の取得 (ユーザー用: 検索機能付き) ---
+  Stream<List<EventModel>> getEventsStream({
+    String? keyword,
+    String? category,
+    DateTime? selectedDate,
+  }) {
+    Query query = _db
         .collection('events')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return EventModel.fromFirestore(doc);
-          }).toList();
-        });
+        .orderBy('createdAt', descending: true);
+
+    return query.snapshots().map((snapshot) {
+      List<EventModel> events = snapshot.docs.map((doc) {
+        return EventModel.fromFirestore(doc);
+      }).toList();
+
+      return events.where((event) {
+        // カテゴリのチェック
+        // UIから 'すべて' が渡された場合は全表示
+        final bool matchesCategory =
+            (category == null ||
+            category == 'すべて' ||
+            event.categoryId == category);
+
+        // 日時のチェック
+        bool matchesDate = true;
+        if (selectedDate != null) {
+          try {
+            final eventDateTime = DateTime.parse(event.eventTime);
+            matchesDate =
+                eventDateTime.isAfter(selectedDate) ||
+                eventDateTime.isAtSameMomentAs(selectedDate);
+          } catch (e) {
+            matchesDate = false;
+          }
+        }
+
+        // キーワードのチェック
+        bool matchesKeyword = true;
+        if (keyword != null && keyword.isNotEmpty) {
+          final lowKeyword = keyword.toLowerCase();
+          matchesKeyword =
+              event.eventName.toLowerCase().contains(lowKeyword) ||
+              event.description.toLowerCase().contains(lowKeyword);
+        }
+
+        return matchesCategory && matchesDate && matchesKeyword;
+      }).toList();
+    });
   }
 
   // --- 3. お気に入り一覧の取得 (ユーザー別) ---
@@ -79,6 +115,8 @@ class FirestoreService {
 
   // --- 4. お気に入りの切り替え (追加/削除) ---
   Future<void> toggleFavorite(EventModel event) async {
+    if (_userId.isEmpty) return; // 未ログイン時は何もしない
+
     final docRef = _db
         .collection('users')
         .doc(_userId)
@@ -94,63 +132,57 @@ class FirestoreService {
     }
   }
 
-  // ▼▼▼ ここから下が追加・復元した機能です ▼▼▼
-
   // --- 5. テンプレート管理機能 (事業者用) ---
-  
-  // テンプレート一覧を取得
   Stream<List<TemplateModel>> getTemplatesStream(String adminId) {
     return _db
         .collection('templates')
-        .where('adminId', isEqualTo: adminId) // 絞り込みのみ（インデックス不要）
-        // .orderBy(...) は削除
+        .where('adminId', isEqualTo: adminId)
         .snapshots()
         .map((snapshot) {
-          // 1. まずモデルリストに変換
           final List<TemplateModel> templates = snapshot.docs
-            .map((doc) => TemplateModel.fromMap(doc.id, doc.data()))
-            .toList();
-          
-          // 2. アプリ側で「作成日時」の降順（新しい順）にソート
+              .map((doc) => TemplateModel.fromMap(doc.id, doc.data()))
+              .toList();
           templates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          
           return templates;
         });
   }
 
-  // テンプレートを追加
   Future<void> addTemplate(TemplateModel template) async {
     await _db.collection('templates').add(template.toMap());
   }
 
-  // テンプレートを削除
   Future<void> deleteTemplate(String templateId) async {
     await _db.collection('templates').doc(templateId).delete();
   }
 
-  // --- 6. スケジュール管理用 (事業者用: 自分のイベントのみ取得・削除) ---
-
-  // 特定の事業者のイベント一覧を取得
+  // --- 6. スケジュール管理用 ---
   Stream<List<EventModel>> getFutureEventsStream(String adminId) {
     return _db
         .collection('events')
-        .where('adminId', isEqualTo: adminId) // 絞り込みのみ
-        // .orderBy(...) は削除してインデックス回避
+        .where('adminId', isEqualTo: adminId)
         .snapshots()
         .map((snapshot) {
           final events = snapshot.docs
               .map((doc) => EventModel.fromFirestore(doc))
               .toList();
-          
-          // アプリ側で「新しい順」に並び替え
           events.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          
           return events;
         });
   }
 
-  // イベントを削除
   Future<void> deleteEvent(String eventId) async {
     await _db.collection('events').doc(eventId).delete();
+  }
+
+  // FirestoreService クラス内に追加
+  Stream<Set<String>> getFavoriteIdsStream() {
+    if (_userId.isEmpty) return Stream.value({});
+
+    return _db
+        .collection('users')
+        .doc(_userId)
+        .collection('favorites')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.id).toSet());
   }
 }
