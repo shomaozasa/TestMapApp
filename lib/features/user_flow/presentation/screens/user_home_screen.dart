@@ -19,11 +19,9 @@ class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
 
   @override
-  // ★ 修正: TickerProviderStateMixin を追加（アニメーション用）
   State<UserHomeScreen> createState() => _UserHomeScreenState();
 }
 
-// ★ 修正: with TickerProviderStateMixin を追加
 class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStateMixin {
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
@@ -41,7 +39,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   DateTime? _searchDate;
   double _searchDistance = 1.0; 
 
-  // ★ 追加: アニメーションコントローラー
+  // アニメーションコントローラー
   late AnimationController _sonarController;
 
   @override
@@ -50,14 +48,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     _eventsStream = _firestoreService.getEventsStream();
     _initializeLocation();
 
-    // ★ 追加: アニメーションの設定 (2秒で1周、繰り返す)
     _sonarController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(); // 0.0 -> 1.0 -> 0.0... を繰り返す
+    )..repeat();
   }
 
-  // ★ 追加: コントローラーの破棄
   @override
   void dispose() {
     _sonarController.dispose();
@@ -275,10 +271,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('イベントマップ（利用者）'),
-        automaticallyImplyLeading: false,
-      ),
+      // ★ 修正: AppBarを専用メソッドに委譲
+      appBar: _buildAppBar(),
+      
+      // ★ 追加: ヘッダーがない場合、地図をステータスバーの裏まで広げる
+      extendBodyBehindAppBar: true, 
+
       body: StreamBuilder<List<EventModel>>(
         stream: _eventsStream,
         builder: (context, eventSnapshot) {
@@ -309,7 +307,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
 
           return Stack(
             children: [
-              // ★ 修正: AnimatedBuilderを使ってアニメーションのフレームごとにGoogleMapを再描画（サークル更新）
               AnimatedBuilder(
                 animation: _sonarController,
                 builder: (context, child) {
@@ -328,15 +325,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                     },
                     onTap: (_) => setState(() => _selectedEvent = null),
                     markers: markers,
-                    
-                    // ★ 修正: ヘルパー関数にアニメーションの値を渡す
                     circles: createSearchRadiusWithSonar(
                       center: _currentPosition,
                       radiusKm: _searchDistance,
                       animationValue: _sonarController.value,
                     ),
-                    
+                    // ヘッダーが消えたので、上部のパディングは不要（もしくはステータスバー分だけ空ける）
                     padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top, // ステータスバーと被らないように調整
                       bottom: _selectedEvent != null ? 280 : 100,
                     ),
                   );
@@ -362,12 +358,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
-  // _buildEventCard, _showEventDetails, _buildBusinessLinkWithFollow, _buildInfoRow, _buildCustomBottomBar, _buildCircleButton 
-  // ↑これらは既存のコードをそのまま使用してください（変更なし）
-  
-  // (コードが長くなりすぎるため、変更のない部分は省略しています。以前のコードを維持してください)
-  // もし全体が必要であればおっしゃってください。
-  
+  // ★ 追加: ヘッダー用メソッド（型枠）
+  // 将来ヘッダーを表示したい場合は、ここのコメントアウトを外して修正するだけでOKです
+  PreferredSizeWidget? _buildAppBar() {
+    /*
+    return AppBar(
+      title: const Text('イベントマップ（利用者）'),
+      automaticallyImplyLeading: false,
+      backgroundColor: Colors.white.withOpacity(0.9), // 半透明にする例
+      elevation: 0,
+    );
+    */
+    return null; // 現在は非表示（nullを返すとヘッダー領域が消滅します）
+  }
+
+  // --- 以下、既存のウィジェットメソッド（変更なし） ---
+
   Widget _buildEventCard(EventModel event) {
     return GestureDetector(
       onTap: () => _showEventDetails(event),
