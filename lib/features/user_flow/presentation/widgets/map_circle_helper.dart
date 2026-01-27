@@ -7,9 +7,7 @@ Set<Circle> createSearchRadiusWithSonar({
   required double radiusKm,
   required double animationValue, // 0.0 〜 1.0
 }) {
-  if (center == null) {
-    return {};
-  }
+  if (center == null) return {};
 
   final double maxRadiusMeters = radiusKm * 1000;
   final Set<Circle> circles = {};
