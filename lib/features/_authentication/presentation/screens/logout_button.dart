@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_map_app/features/_authentication/presentation/screens/login_screen.dart';
+import 'package:google_map_app/features/_authentication/presentation/screens/splash_screen.dart';
 
 class LogoutButton extends StatelessWidget {
   final Color? iconColor;
@@ -35,7 +35,7 @@ class LogoutButton extends StatelessWidget {
         if (context.mounted) {
           // ログイン画面へ戻り、履歴を消去
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            MaterialPageRoute(builder: (context) => const SplashScreen()),
             (route) => false,
           );
         }
