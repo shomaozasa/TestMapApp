@@ -722,7 +722,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
               MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
             ),
           ),
-          _buildCircleButton(icon: Icons.home, onPressed: () {}),
           _buildCircleButton(
             icon: Icons.person_outline,
             onPressed: () {
