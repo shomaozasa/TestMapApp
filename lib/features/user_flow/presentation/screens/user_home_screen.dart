@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:io'; // Platform判定用
+import 'package:flutter/foundation.dart'; // ★追加: Web判定(kIsWeb)用
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
@@ -14,6 +17,8 @@ import 'package:google_map_app/features/user_flow/presentation/screens/favorite_
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
+import 'package:google_map_app/core/constants/event_status.dart';
+import 'package:google_map_app/core/utils/map_utils.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -119,6 +124,41 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
 
     if (_currentPosition != null) {
       _zoomToFitCircle(_currentPosition!, distance);
+    }
+  }
+
+  // ★ 修正: Webとアプリ両方に対応したマップ起動メソッド
+  Future<void> _openMapApp(double lat, double lng) async {
+    Uri url;
+    
+    // 1. Webの場合 (Chromeなど)
+    if (kIsWeb) {
+      // ブラウザでGoogle Mapsを開く
+      url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+    } 
+    // 2. iOSアプリの場合
+    else if (Platform.isIOS) {
+      url = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng');
+    } 
+    // 3. Androidアプリの場合
+    else {
+      url = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+    }
+
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        // ネイティブアプリ起動失敗時のフォールバック（ブラウザで開く）
+        final fallbackUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+        if (await canLaunchUrl(fallbackUrl)) {
+          await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
+        } else {
+          debugPrint('マップを開けませんでした: $url');
+        }
+      }
+    } catch (e) {
+      debugPrint('マップ起動エラー: $e');
     }
   }
 
@@ -271,10 +311,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ★ 修正: AppBarを専用メソッドに委譲
       appBar: _buildAppBar(),
-      
-      // ★ 追加: ヘッダーがない場合、地図をステータスバーの裏まで広げる
       extendBodyBehindAppBar: true, 
 
       body: StreamBuilder<List<EventModel>>(
@@ -301,6 +338,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                 event.location.latitude,
                 event.location.longitude,
               ),
+              icon: MapUtils.getMarkerIconByStatus(event.status),
               onTap: () => setState(() => _selectedEvent = event),
             );
           }).toSet();
@@ -330,9 +368,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       radiusKm: _searchDistance,
                       animationValue: _sonarController.value,
                     ),
-                    // ヘッダーが消えたので、上部のパディングは不要（もしくはステータスバー分だけ空ける）
                     padding: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top, // ステータスバーと被らないように調整
+                      top: MediaQuery.of(context).padding.top,
                       bottom: _selectedEvent != null ? 280 : 100,
                     ),
                   );
@@ -358,21 +395,58 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
-  // ★ 追加: ヘッダー用メソッド（型枠）
-  // 将来ヘッダーを表示したい場合は、ここのコメントアウトを外して修正するだけでOKです
   PreferredSizeWidget? _buildAppBar() {
-    /*
-    return AppBar(
-      title: const Text('イベントマップ（利用者）'),
-      automaticallyImplyLeading: false,
-      backgroundColor: Colors.white.withOpacity(0.9), // 半透明にする例
-      elevation: 0,
-    );
-    */
-    return null; // 現在は非表示（nullを返すとヘッダー領域が消滅します）
+    return null;
   }
 
-  // --- 以下、既存のウィジェットメソッド（変更なし） ---
+  Widget _buildStatusBadge(String status) {
+    String label;
+    Color color;
+    Color textColor = Colors.white;
+
+    switch (status) {
+      case EventStatus.active:
+        label = '営業中';
+        color = Colors.green;
+        break;
+      case EventStatus.breakTime:
+        label = '休憩中';
+        color = Colors.orange;
+        break;
+      case EventStatus.finished:
+        label = '終了';
+        color = Colors.grey;
+        break;
+      case EventStatus.scheduled:
+      default:
+        label = '準備中';
+        color = Colors.blue;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
 
   Widget _buildEventCard(EventModel event) {
     return GestureDetector(
@@ -415,12 +489,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       style: const TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                     const Spacer(),
-                    const Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '詳細を見る >',
-                        style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          EventStatus.getLabel(event.status),
+                          style: TextStyle(
+                            fontSize: 12, 
+                            fontWeight: FontWeight.bold,
+                            color: event.status == EventStatus.active ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                        const Text(
+                          '詳細を見る >',
+                          style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -465,6 +549,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildStatusBadge(event.status),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           Text(
                             event.eventName,
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -474,7 +565,37 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           const SizedBox(height: 24),
                           _buildInfoRow(Icons.access_time, '日時', event.eventTime),
                           const SizedBox(height: 16),
-                          _buildInfoRow(Icons.location_on_outlined, '場所', event.address),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 20, color: Colors.black54),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('場所', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                                    Text(event.address, style: const TextStyle(fontSize: 15)),
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _openMapApp(event.latitude, event.longitude),
+                                        icon: const Icon(Icons.directions, size: 18),
+                                        label: const Text('ルート案内 (マップアプリ)'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue.shade50,
+                                          foregroundColor: Colors.blue.shade700,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                           const Divider(height: 40),
                           const Text('詳細情報', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),

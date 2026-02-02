@@ -1,23 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // ★ GoogleMapsの型を使うために追加
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+// ★追加: ステータス定数をインポート
+import 'package:google_map_app/core/constants/event_status.dart';
 
 /// Firestoreに保存するイベント情報のデータモデル
 class EventModel {
-  final String id; // ドキュメントID
-  final String adminId; // 事業者ID
-  final String categoryId; // カテゴリID
-  final String eventName; // イベント名
-  final String eventTime; // 開催時間 (13:00-15:00)
-  final String eventImage; // イベント画像のURL(firebaseのstrageのURL)
-  
-  // ★ 修正: アプリ内で扱いやすいように GeoPoint ではなく LatLng で保持
-  final LatLng location; // 座標 (位置情報)
-  
-  final String address; // 場所
-  // --- ★ 1. 詳細説明フィールドを追加 ---
-  final String description; // イベント詳細説明
-  final Timestamp createdAt; // 作成日時
-  final Timestamp updatedAt; // 更新日時
+  final String id;
+  final String adminId;
+  final String categoryId;
+  final String eventName;
+  final String eventTime;
+  final String eventImage;
+  final LatLng location;
+  final String address;
+  final String description;
+  // ★追加: イベントの状態
+  final String status; 
+  final Timestamp createdAt;
+  final Timestamp updatedAt;
 
   EventModel({
     required this.id,
@@ -29,24 +29,21 @@ class EventModel {
     required this.location,
     required this.address,
     required this.description,
+    // ★追加: デフォルト値は 'scheduled' (準備中)
+    this.status = EventStatus.scheduled,
     required this.createdAt,
     required this.updatedAt,
-    // ★ 1. コンストラクタにも追加
   });
 
-  // ★ 追加: マップ画面等で使いやすいように緯度経度を直接取れるゲッター
   double get latitude => location.latitude;
   double get longitude => location.longitude;
 
-  /// Firestoreのドキュメント（Map）からEventModelオブジェクトを生成する
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-    // ★ 修正: FirestoreのGeoPointをGoogleMapのLatLngに変換
-    // locationが存在し、GeoPoint型であることを確認 (なければデフォルト値)
     final GeoPoint geoPoint = data['location'] is GeoPoint
         ? data['location']
-        : const GeoPoint(33.590354, 130.401719); // デフォルト値(天神など)
+        : const GeoPoint(33.590354, 130.401719);
     
     final LatLng latLng = LatLng(geoPoint.latitude, geoPoint.longitude);
 
@@ -57,18 +54,18 @@ class EventModel {
       eventName: data['eventName'] ?? '',
       eventTime: data['eventTime'] ?? '',
       eventImage: data['eventImage'] ?? '',
-      
-      location: latLng, // ★ LatLngに変換したものをセット
-      
-      // ★ 1. description も読み込む (存在しない場合は空文字)
+      location: latLng,
       address: data['address'] ?? '',
       description: data['description'] ?? '',
+      
+      // ★追加: Firestoreからステータスを取得 (なければデフォルト)
+      status: data['status'] ?? EventStatus.scheduled,
+      
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
     );
   }
 
-  /// EventModelオブジェクトをFirestoreに保存可能なMap形式に変換する
   Map<String, dynamic> toFirestore() {
     return {
       'adminId': adminId,
@@ -76,12 +73,13 @@ class EventModel {
       'eventName': eventName,
       'eventTime': eventTime,
       'eventImage': eventImage,
-      
-      // ★ 修正: 保存時は LatLng を Firestore 用の GeoPoint に戻す
       'location': GeoPoint(location.latitude, location.longitude),
-      
       'address': address,
       'description': description,
+      
+      // ★追加: 保存時にもステータスを含める
+      'status': status,
+      
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
