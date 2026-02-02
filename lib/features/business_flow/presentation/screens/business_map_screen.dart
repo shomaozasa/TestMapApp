@@ -12,6 +12,9 @@ import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/service/storage_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/template_model.dart';
+import 'package:google_map_app/core/constants/event_status.dart';
+import 'package:google_map_app/core/utils/map_utils.dart';
+import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
 
 class BusinessMapScreen extends StatefulWidget {
   final DateTime? initialDate;
@@ -22,17 +25,18 @@ class BusinessMapScreen extends StatefulWidget {
   State<BusinessMapScreen> createState() => _BusinessMapScreenState();
 }
 
-class _BusinessMapScreenState extends State<BusinessMapScreen> {
-  final String _testAdminId = 'test_user_id';
-  final Completer<GoogleMapController> _controller =
-      Completer<GoogleMapController>();
+class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProviderStateMixin {
+  String get _currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
 
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
   LatLng? _currentPosition;
 
-  Marker? _tappedMarker;
+  Marker? _newRegistrationMarker;
   LatLng? _tappedLatLng;
 
+  // コントローラー類
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
@@ -55,13 +59,37 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
   bool _isRegistrationSuccessful = false;
   bool _isTimeUndecided = false;
 
+  final Set<String> _notifiedEventIds = {};
+
   final FirestoreService _firestoreService = FirestoreService();
   final StorageService _storageService = StorageService();
+
+  late Stream<List<EventModel>> _myEventsStream;
+  
+  late AnimationController _sonarController;
 
   @override
   void initState() {
     super.initState();
     _initializeLocation();
+    _myEventsStream = _firestoreService.getFutureEventsStream(_currentUserId);
+
+    _sonarController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _eventNameController.dispose();
+    _startTimeController.dispose();
+    _endTimeController.dispose();
+    _descriptionController.dispose();
+    _addressController.dispose();
+    _dateController.dispose();
+    _sonarController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeLocation() async {
@@ -76,16 +104,18 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _eventNameController.dispose();
-    _startTimeController.dispose();
-    _endTimeController.dispose();
-    _descriptionController.dispose();
-    _addressController.dispose();
-    _dateController.dispose();
-    super.dispose();
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return Future.error('ロケーションサービス無効');
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return Future.error('権限拒否');
+    }
+    return await Geolocator.getCurrentPosition();
   }
+
+  // --- ヘルパーメソッド ---
 
   String _formatDate(DateTime date) {
     return "${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}";
@@ -95,97 +125,411 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _selectTime(
-    BuildContext context,
-    TextEditingController controller,
-    StateSetter setModalState,
-  ) async {
-    TimeOfDay initialTime = TimeOfDay.now();
-    if (controller.text.isNotEmpty) {
-      try {
-        final parts = controller.text.split(':');
-        initialTime = TimeOfDay(
-          hour: int.parse(parts[0]),
-          minute: int.parse(parts[1]),
-        );
-      } catch (_) {}
-    }
-
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: initialTime,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
-    );
-
-    if (picked != null) {
-      setModalState(() => controller.text = _formatTimeOfDay(picked));
-    }
-  }
-
-  void _addHoursToEndTime(int hours, StateSetter setModalState) {
-    if (_startTimeController.text.isEmpty) return;
+  bool _isWithinEventTime(String eventTimeStr) {
+    if (eventTimeStr.contains("(未定)")) return true;
     try {
-      final parts = _startTimeController.text.split(':');
-      int hour = int.parse(parts[0]);
-      int minute = int.parse(parts[1]);
-      int newHour = (hour + hours) % 24;
-      setModalState(
-        () => _endTimeController.text =
-            '${newHour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
-      );
+      final parts = eventTimeStr.split(' - ');
+      if (parts.length != 2) return true;
+      final startFullStr = parts[0]; 
+      final endTimeStr = parts[1];
+      final format = DateFormat('yyyy/MM/dd HH:mm');
+      final startDateTime = format.parse(startFullStr);
+      final dateStr = startFullStr.split(' ')[0];
+      final endDateTime = format.parse('$dateStr $endTimeStr');
+      final now = DateTime.now();
+      return now.isAfter(startDateTime) && now.isBefore(endDateTime);
     } catch (e) {
-      debugPrint('時刻計算エラー: $e');
+      return true;
     }
   }
+
+  bool _hasStarted(String eventTimeStr) {
+    if (eventTimeStr.contains("(未定)")) return false;
+    try {
+      final startFullStr = eventTimeStr.split(' - ')[0];
+      final format = DateFormat('yyyy/MM/dd HH:mm');
+      final startDateTime = format.parse(startFullStr);
+      return DateTime.now().isAfter(startDateTime);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void _checkStartNotifications(List<EventModel> events) {
+    for (var event in events) {
+      if (event.status == EventStatus.scheduled &&
+          !_notifiedEventIds.contains(event.id) &&
+          _hasStarted(event.eventTime)) {
+        _notifiedEventIds.add(event.id);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showStartDialog(event);
+        });
+      }
+    }
+  }
+
+  void _showStartDialog(EventModel event) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("イベント開始時刻です"),
+          content: Text("「${event.eventName}」の開始時刻になりました。\nステータスを「営業中」に変更しますか？"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("あとで"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () async {
+                Navigator.pop(context);
+                await _firestoreService.updateEventStatus(event.id, EventStatus.active);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('営業を開始しました！')),
+                  );
+                }
+              },
+              child: const Text("開始する (営業中へ)", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- UI構築 ---
 
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top + 70.0;
     const double bottomPadding = 120.0;
-    return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            mapType: MapType.normal,
-            initialCameraPosition: CameraPosition(
-              target: _currentPosition ?? _kFallbackLocation,
-              zoom: 15.0,
+
+    return StreamBuilder<List<EventModel>>(
+      stream: _myEventsStream,
+      builder: (context, snapshot) {
+        final myEvents = snapshot.data ?? [];
+        
+        _checkStartNotifications(myEvents);
+
+        final Set<Marker> markers = {};
+        
+        for (var event in myEvents) {
+          markers.add(
+            Marker(
+              markerId: MarkerId(event.id),
+              position: event.location,
+              icon: MapUtils.getMarkerIconByStatus(event.status),
+              onTap: () => _onMarkerTapped(event),
             ),
-            onMapCreated: (GoogleMapController controller) {
-              if (!_controller.isCompleted) _controller.complete(controller);
-            },
-            padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
-            onTap: _onMapTapped,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            markers: <Marker>{if (_tappedMarker != null) _tappedMarker!},
+          );
+        }
+
+        if (_newRegistrationMarker != null) {
+          markers.add(_newRegistrationMarker!);
+        }
+
+        return Scaffold(
+          body: Stack(
+            children: [
+              AnimatedBuilder(
+                animation: _sonarController,
+                builder: (context, child) {
+                  final Set<Circle> activeSonars = {};
+                  
+                  for (var event in myEvents) {
+                    if (event.status == EventStatus.active) {
+                      activeSonars.addAll(createActivePinSonar(
+                        eventId: event.id,
+                        center: event.location,
+                        animationValue: _sonarController.value,
+                      ));
+                    }
+                  }
+
+                  return GoogleMap(
+                    mapType: MapType.normal,
+                    initialCameraPosition: CameraPosition(
+                      target: _currentPosition ?? _kFallbackLocation,
+                      zoom: 15.0,
+                    ),
+                    onMapCreated: (GoogleMapController controller) {
+                      if (!_controller.isCompleted)
+                        _controller.complete(controller);
+                    },
+                    padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+                    onTap: _onMapTapped,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    markers: markers,
+                    circles: activeSonars, 
+                  );
+                },
+              ),
+              if (_tappedLatLng != null) _buildConfirmButtonAndHint(),
+              _buildTopOverlayUI(context),
+            ],
           ),
-          _buildConfirmButtonAndHint(),
-          _buildTopOverlayUI(context),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTopOverlayUI(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildCircleButton(
-              context: context,
-              icon: Icons.arrow_back,
-              onPressed: () => Navigator.of(context).pop(),
+  void _onMarkerTapped(EventModel event) {
+    if (event.status == EventStatus.scheduled && !_hasStarted(event.eventTime)) {
+      _showBusinessEventDetails(event);
+    } else {
+      _showStatusChangeSheet(event);
+    }
+  }
+
+  void _showBusinessEventDetails(EventModel event) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (event.eventImage.isNotEmpty)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: Image.network(
+                    event.eventImage,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                Container(
+                  height: 100,
+                  decoration: const BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: const Center(child: Icon(Icons.image, size: 50, color: Colors.white)),
+                ),
+              
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: const Text('準備中', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                          const Spacer(),
+                          Text(event.categoryId, style: const TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        event.eventName,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      const SizedBox(height: 10),
+                      _buildDetailRow(Icons.calendar_today, '日時', event.eventTime),
+                      const SizedBox(height: 16),
+                      _buildDetailRow(Icons.location_on, '場所', event.address),
+                      const SizedBox(height: 20),
+                      const Text('詳細', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text(event.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+                      const SizedBox(height: 40),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('閉じる'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: Colors.black54),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- ★ 修正: ステータス変更シート ---
+  void _showStatusChangeSheet(EventModel event) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // ステータスに応じたコンテンツを作成
+        Widget content;
+        
+        switch (event.status) {
+          case EventStatus.active:
+            // 営業中 -> 休憩・終了
+            content = Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatusButton(event, EventStatus.breakTime, '休憩する', Colors.orange),
+                _buildStatusButton(event, EventStatus.finished, '終了する', Colors.red),
+              ],
+            );
+            break;
+            
+          case EventStatus.breakTime:
+            // 休憩中 -> 再開
+            content = Center(
+              child: _buildStatusButton(event, EventStatus.active, '再開する', Colors.green),
+            );
+            break;
+
+          case EventStatus.finished:
+            // 終了 -> メッセージのみ
+            content = const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle, size: 48, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text(
+                    "イベントは終了しました",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+            break;
+
+          case EventStatus.scheduled:
+          default:
+            // 準備中 -> 開始
+            content = Center(
+               child: _buildStatusButton(event, EventStatus.active, '営業開始', Colors.green),
+            );
+            break;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                event.eventName,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text("現在の状態を変更します", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 20),
+              
+              // 動的に決定したコンテンツを表示
+              content,
+              
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusButton(
+      EventModel event, String statusKey, String label, Color color) {
+    return InkWell(
+      onTap: () async {
+        Navigator.pop(context);
+
+        if (statusKey == EventStatus.active) {
+          final bool isOpen = _isWithinEventTime(event.eventTime);
+          if (!isOpen) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('営業時間外のため「営業中」にできません'),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            return;
+          }
+        }
+
+        await _firestoreService.updateEventStatus(event.id, statusKey);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('状態を「$label」に変更しました'),
+              backgroundColor: Colors.black87,
             ),
-            _buildCircleButton(
-              context: context,
-              icon: Icons.menu,
-              onPressed: () {},
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: color, width: 2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.touch_app, color: color),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -193,22 +537,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     );
   }
 
-  Widget _buildCircleButton({
-    required BuildContext context,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      elevation: 4.0,
-      shape: const CircleBorder(),
-      color: Colors.white,
-      clipBehavior: Clip.antiAlias,
-      child: IconButton(
-        icon: Icon(icon, color: Colors.black87),
-        onPressed: onPressed,
-      ),
-    );
-  }
+  // --- 地図操作・登録 ---
 
   void _onMapTapped(LatLng latLng) {
     if (_isBottomSheetOpen) {
@@ -217,10 +546,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
     setState(() {
       _tappedLatLng = latLng;
-      _tappedMarker = Marker(
-        markerId: const MarkerId('tapped_location'),
+      _newRegistrationMarker = Marker(
+        markerId: const MarkerId('new_reg_pin'),
         position: latLng,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
       );
     });
   }
@@ -282,12 +611,11 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
         locationToRegister = LatLng(position.latitude, position.longitude);
         setState(() {
           _tappedLatLng = locationToRegister;
-          _tappedMarker = Marker(
-            markerId: const MarkerId('tapped_location'),
+          _newRegistrationMarker = Marker(
+            markerId: const MarkerId('new_reg_pin'),
             position: locationToRegister!,
             icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
+                BitmapDescriptor.hueCyan),
           );
         });
         final GoogleMapController controller = await _controller.future;
@@ -304,6 +632,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     setState(() => _isLoadingLocation = false);
     if (locationToRegister != null) _showRegistrationSheet();
   }
+
+  // --- 登録フォーム関連 ---
 
   void _showRegistrationSheet() async {
     setState(() {
@@ -360,7 +690,9 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                         children: [
                           Text(
                             '出店登録',
-                            style: Theme.of(context).textTheme.headlineMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           OutlinedButton.icon(
@@ -404,17 +736,16 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                                       fit: BoxFit.cover,
                                     )
                                   : (_templateImageUrl != null &&
-                                            _templateImageUrl!.isNotEmpty
-                                        ? DecorationImage(
-                                            image: NetworkImage(
-                                              _templateImageUrl!,
-                                            ),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null),
+                                          _templateImageUrl!.isNotEmpty
+                                      ? DecorationImage(
+                                          image: NetworkImage(
+                                            _templateImageUrl!,
+                                          ),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null),
                             ),
-                            child:
-                                (_imageBytes == null &&
+                            child: (_imageBytes == null &&
                                     (_templateImageUrl == null ||
                                         _templateImageUrl!.isEmpty))
                                 ? Column(
@@ -490,7 +821,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         value: _isTimeUndecided,
-                        // ★ ここを setModalState に修正しました
                         onChanged: (v) =>
                             setModalState(() => _isTimeUndecided = v ?? false),
                         controlAffinity: ListTileControlAffinity.leading,
@@ -612,8 +942,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       setState(() {
         _isBottomSheetOpen = false;
         if (!_isRegistrationSuccessful) {
-          _tappedMarker = null;
           _tappedLatLng = null;
+          _newRegistrationMarker = null;
         }
       });
     }
@@ -641,6 +971,42 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     );
   }
 
+  void _addHoursToEndTime(int hours, StateSetter setModalState) {
+    if (_startTimeController.text.isEmpty) return;
+    try {
+      final parts = _startTimeController.text.split(':');
+      int hour = int.parse(parts[0]);
+      int minute = int.parse(parts[1]);
+      int newHour = (hour + hours) % 24;
+      setModalState(() => _endTimeController.text =
+          '${newHour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}');
+    } catch (e) {
+      debugPrint('時刻計算エラー: $e');
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context,
+      TextEditingController controller, StateSetter setModalState) async {
+    TimeOfDay initialTime = TimeOfDay.now();
+    if (controller.text.isNotEmpty) {
+      try {
+        final parts = controller.text.split(':');
+        initialTime = TimeOfDay(
+            hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      } catch (_) {}
+    }
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!),
+    );
+    if (picked != null) {
+      setModalState(() => controller.text = _formatTimeOfDay(picked));
+    }
+  }
+
   void _showTemplateSelector(StateSetter setModalState) {
     showModalBottomSheet(
       context: context,
@@ -660,7 +1026,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: StreamBuilder<List<TemplateModel>>(
-                stream: _firestoreService.getTemplatesStream(_testAdminId),
+                stream: _firestoreService.getTemplatesStream(_currentUserId),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return const Center(child: CircularProgressIndicator());
@@ -720,12 +1086,13 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
       String timeStr = _isTimeUndecided
           ? "${_dateController.text} (未定)"
           : "${_dateController.text} ${_startTimeController.text} - ${_endTimeController.text}";
+
       await _firestoreService.addEvent(
         eventName: _eventNameController.text,
         eventTime: timeStr,
         location: _tappedLatLng!,
         description: _descriptionController.text,
-        adminId: _testAdminId,
+        adminId: _currentUserId,
         categoryId: _selectedCategory,
         address: _addressController.text,
         eventImage: imageUrl,
@@ -742,14 +1109,43 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> {
     }
   }
 
-  Future<Position> _determinePosition() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return Future.error('ロケーションサービス無効');
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return Future.error('権限拒否');
-    }
-    return await Geolocator.getCurrentPosition();
+  Widget _buildTopOverlayUI(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildCircleButton(
+              context: context,
+              icon: Icons.arrow_back,
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            _buildCircleButton(
+              context: context,
+              icon: Icons.menu,
+              onPressed: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircleButton({
+    required BuildContext context,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      elevation: 4.0,
+      shape: const CircleBorder(),
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      child: IconButton(
+        icon: Icon(icon, color: Colors.black87),
+        onPressed: onPressed,
+      ),
+    );
   }
 }
