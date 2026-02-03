@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:io'; // Platform判定用
 import 'package:flutter/foundation.dart'; // Web判定(kIsWeb)用
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -20,8 +21,17 @@ import 'package:google_map_app/features/user_flow/presentation/widgets/map_circl
 import 'package:google_map_app/core/constants/event_status.dart';
 import 'package:google_map_app/core/utils/map_utils.dart';
 
-// ★ 追加: 通知サービスをインポート
 import 'package:google_map_app/core/service/fcm_service.dart';
+
+// マウスでのドラッグ操作を許可するためのクラス
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
+}
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -31,18 +41,18 @@ class UserHomeScreen extends StatefulWidget {
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStateMixin {
-  final Completer<GoogleMapController> _controller =
-      Completer<GoogleMapController>();
+  final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
   final FirestoreService _firestoreService = FirestoreService();
-
-  // ★ 追加: 通知サービスのインスタンス化
   final FcmService _fcmService = FcmService();
 
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
   LatLng? _currentPosition;
 
-  EventModel? _selectedEvent;
   late Stream<List<EventModel>> _eventsStream;
+  List<EventModel> _sortedEvents = [];
+
+  late PageController _pageController; 
+  int _currentCardIndex = 0;
 
   // 検索条件
   String _searchKeyword = "";
@@ -50,16 +60,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   DateTime? _searchDate;
   double _searchDistance = 1.0; 
 
-  // アニメーションコントローラー
   late AnimationController _sonarController;
 
   @override
   void initState() {
     super.initState();
     _eventsStream = _firestoreService.getEventsStream();
+    _pageController = PageController(viewportFraction: 0.85);
     _initializeLocation();
-
-    // ★ 追加: 通知機能の初期化（権限リクエスト・トークン保存）
     _fcmService.initialize();
 
     _sonarController = AnimationController(
@@ -71,6 +79,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   @override
   void dispose() {
     _sonarController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -109,13 +118,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     required double distance,
   }) {
     final categoryMap = {
-      'グルメ': 'Food',
-      'ライブ': 'Music',
-      '体験': 'Shop',
-      '展示': 'Art',
-      'すべて': 'すべて',
+      'グルメ': 'Food', 'ライブ': 'Music', '体験': 'Shop', '展示': 'Art', 'すべて': 'すべて',
     };
-
     final String dbCategory = categoryMap[category] ?? 'Other';
 
     setState(() {
@@ -136,10 +140,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     }
   }
 
-  // マップ起動メソッド (Web/Mobile対応版)
   Future<void> _openMapApp(double lat, double lng) async {
     Uri url;
-    
     if (kIsWeb) {
       url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
     } else if (Platform.isIOS) {
@@ -155,8 +157,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
         final fallbackUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
         if (await canLaunchUrl(fallbackUrl)) {
           await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
-        } else {
-          debugPrint('マップを開けませんでした: $url');
         }
       }
     } catch (e) {
@@ -164,29 +164,301 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     }
   }
 
+  void _onPageChanged(int index) async {
+    setState(() => _currentCardIndex = index);
+    if (_sortedEvents.isNotEmpty && index < _sortedEvents.length) {
+      final event = _sortedEvents[index];
+      final GoogleMapController controller = await _controller.future;
+      
+      controller.animateCamera(
+        CameraUpdate.newLatLng(
+          LatLng(event.location.latitude - 0.005, event.location.longitude),
+        ),
+      );
+    }
+  }
+
+  void _onMarkerTapped(EventModel event) {
+    final index = _sortedEvents.indexWhere((e) => e.id == event.id);
+    if (index != -1) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      extendBodyBehindAppBar: true, 
+
+      body: StreamBuilder<List<EventModel>>(
+        stream: _eventsStream,
+        builder: (context, eventSnapshot) {
+          List<EventModel> events = eventSnapshot.data ?? [];
+          
+          if (_currentPosition != null) {
+            events = events.where((e) {
+              double dist = Geolocator.distanceBetween(
+                _currentPosition!.latitude,
+                _currentPosition!.longitude,
+                e.location.latitude,
+                e.location.longitude,
+              );
+              return dist <= (_searchDistance * 1000);
+            }).toList();
+
+            events.sort((a, b) {
+              double distA = Geolocator.distanceBetween(
+                _currentPosition!.latitude, _currentPosition!.longitude,
+                a.location.latitude, a.location.longitude,
+              );
+              double distB = Geolocator.distanceBetween(
+                _currentPosition!.latitude, _currentPosition!.longitude,
+                b.location.latitude, b.location.longitude,
+              );
+              return distA.compareTo(distB);
+            });
+          }
+          
+          _sortedEvents = events;
+
+          final Set<Marker> markers = events.map((event) {
+            return Marker(
+              markerId: MarkerId(event.id),
+              position: LatLng(
+                event.location.latitude,
+                event.location.longitude,
+              ),
+              icon: MapUtils.getMarkerIconByStatus(event.status),
+              onTap: () => _onMarkerTapped(event),
+            );
+          }).toSet();
+
+          return Stack(
+            children: [
+              // 1. マップレイヤー
+              AnimatedBuilder(
+                animation: _sonarController,
+                builder: (context, child) {
+                  return GoogleMap(
+                    mapType: MapType.normal,
+                    initialCameraPosition: CameraPosition(
+                      target: _currentPosition ?? _kFallbackLocation,
+                      zoom: 14.5,
+                    ),
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    onMapCreated: (GoogleMapController controller) {
+                      if (!_controller.isCompleted) {
+                        _controller.complete(controller);
+                      }
+                    },
+                    markers: markers,
+                    circles: createSearchRadiusWithSonar(
+                      center: _currentPosition,
+                      radiusKm: _searchDistance,
+                      animationValue: _sonarController.value,
+                    ),
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top,
+                      bottom: 240, 
+                    ),
+                  );
+                },
+              ),
+
+              // 2. イベントカードリスト (PageView)
+              if (events.isNotEmpty)
+                Positioned(
+                  bottom: 110,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 150,
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: (_) {},
+                      onPointerMove: (_) {},
+                      onPointerUp: (_) {},
+                      child: ScrollConfiguration(
+                        behavior: AppScrollBehavior(),
+                        child: PageView.builder(
+                          controller: _pageController,
+                          itemCount: events.length,
+                          onPageChanged: _onPageChanged,
+                          itemBuilder: (context, index) {
+                            return _buildEventCardItem(events[index]);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // 3. コントロールパネル
+              Positioned(
+                bottom: 30,
+                left: 20,
+                right: 20,
+                child: _buildCustomBottomBar(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEventCardItem(EventModel event) {
+    return GestureDetector(
+      onTap: () => _showEventDetails(event),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              child: SizedBox(
+                width: 110,
+                height: double.infinity,
+                child: event.eventImage.isNotEmpty
+                    ? Image.network(event.eventImage, fit: BoxFit.cover)
+                    : Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildSmallStatusBadge(event.status),
+                        if (_currentPosition != null)
+                          Text(
+                            _calculateDistance(event.location),
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      event.eventName,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 12, color: Colors.black54),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            event.eventTime,
+                            style: const TextStyle(fontSize: 11, color: Colors.black54),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    const Align(
+                      alignment: Alignment.bottomRight,
+                      child: Text(
+                        '詳細 >',
+                        style: TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _calculateDistance(LatLng target) {
+    if (_currentPosition == null) return "";
+    double distInMeters = Geolocator.distanceBetween(
+      _currentPosition!.latitude, _currentPosition!.longitude,
+      target.latitude, target.longitude,
+    );
+    if (distInMeters < 1000) {
+      return "${distInMeters.toInt()}m";
+    } else {
+      return "${(distInMeters / 1000).toStringAsFixed(1)}km";
+    }
+  }
+
+  Widget _buildSmallStatusBadge(String status) {
+    Color color;
+    String label;
+    switch (status) {
+      case EventStatus.active: color = Colors.green; label = "営業中"; break;
+      case EventStatus.breakTime: color = Colors.orange; label = "休憩中"; break;
+      case EventStatus.finished: color = Colors.grey; label = "終了"; break;
+      default: color = Colors.blue; label = "準備中"; break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  PreferredSizeWidget? _buildAppBar() {
+    return null;
+  }
+
   void _showSearchPanel() {
     String tempCategory = _searchCategory;
     double tempDistance = _searchDistance;
     DateTime? tempDate = _searchDate;
-    final TextEditingController keywordController = TextEditingController(
-      text: _searchKeyword,
-    );
+    final TextEditingController keywordController = TextEditingController(text: _searchKeyword);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setPanelState) {
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 20,
-                right: 20,
-                top: 20,
+                left: 20, right: 20, top: 20,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -224,9 +496,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.calendar_today, color: Colors.blue),
-                      title: Text(
-                        tempDate == null ? '指定なし' : DateFormat('yyyy/MM/dd HH:mm').format(tempDate!),
-                      ),
+                      title: Text(tempDate == null ? '指定なし' : DateFormat('yyyy/MM/dd HH:mm').format(tempDate!)),
                       onTap: () async {
                         final date = await showDatePicker(
                           context: context,
@@ -235,15 +505,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           lastDate: DateTime.now().add(const Duration(days: 365)),
                         );
                         if (date != null) {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                          );
+                          final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
                           if (time != null) {
                             setPanelState(() {
-                              tempDate = DateTime(
-                                date.year, date.month, date.day, time.hour, time.minute,
-                              );
+                              tempDate = DateTime(date.year, date.month, date.day, time.hour, time.minute);
                             });
                           }
                         }
@@ -259,9 +524,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                     ),
                     Slider(
                       value: tempDistance,
-                      min: 1,
-                      max: 50,
-                      divisions: 49,
+                      min: 1, max: 50, divisions: 49,
                       label: '${tempDistance.toInt()} km',
                       onChanged: (val) => setPanelState(() => tempDistance = val),
                     ),
@@ -283,8 +546,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       height: 55,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.blue, foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         ),
                         onPressed: () {
@@ -307,214 +569,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
           },
         );
       },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(),
-      extendBodyBehindAppBar: true, 
-
-      body: StreamBuilder<List<EventModel>>(
-        stream: _eventsStream,
-        builder: (context, eventSnapshot) {
-          List<EventModel> events = eventSnapshot.data ?? [];
-          
-          if (_currentPosition != null) {
-            events = events.where((e) {
-              double dist = Geolocator.distanceBetween(
-                _currentPosition!.latitude,
-                _currentPosition!.longitude,
-                e.location.latitude,
-                e.location.longitude,
-              );
-              return dist <= (_searchDistance * 1000);
-            }).toList();
-          }
-
-          final Set<Marker> markers = events.map((event) {
-            return Marker(
-              markerId: MarkerId(event.id),
-              position: LatLng(
-                event.location.latitude,
-                event.location.longitude,
-              ),
-              icon: MapUtils.getMarkerIconByStatus(event.status),
-              onTap: () => setState(() => _selectedEvent = event),
-            );
-          }).toSet();
-
-          return Stack(
-            children: [
-              AnimatedBuilder(
-                animation: _sonarController,
-                builder: (context, child) {
-                  return GoogleMap(
-                    mapType: MapType.normal,
-                    initialCameraPosition: CameraPosition(
-                      target: _currentPosition ?? _kFallbackLocation,
-                      zoom: 14.5,
-                    ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    onMapCreated: (GoogleMapController controller) {
-                      if (!_controller.isCompleted) {
-                        _controller.complete(controller);
-                      }
-                    },
-                    onTap: (_) => setState(() => _selectedEvent = null),
-                    markers: markers,
-                    circles: createSearchRadiusWithSonar(
-                      center: _currentPosition,
-                      radiusKm: _searchDistance,
-                      animationValue: _sonarController.value,
-                    ),
-                    padding: EdgeInsets.only(
-                      top: MediaQuery.of(context).padding.top,
-                      bottom: _selectedEvent != null ? 280 : 100,
-                    ),
-                  );
-                },
-              ),
-              if (_selectedEvent != null)
-                Positioned(
-                  bottom: 120,
-                  left: 20,
-                  right: 20,
-                  child: _buildEventCard(_selectedEvent!),
-                ),
-              Positioned(
-                bottom: 30,
-                left: 20,
-                right: 20,
-                child: _buildCustomBottomBar(),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  PreferredSizeWidget? _buildAppBar() {
-    return null;
-  }
-
-  Widget _buildStatusBadge(String status) {
-    String label;
-    Color color;
-    Color textColor = Colors.white;
-
-    switch (status) {
-      case EventStatus.active:
-        label = '営業中';
-        color = Colors.green;
-        break;
-      case EventStatus.breakTime:
-        label = '休憩中';
-        color = Colors.orange;
-        break;
-      case EventStatus.finished:
-        label = '終了';
-        color = Colors.grey;
-        break;
-      case EventStatus.scheduled:
-      default:
-        label = '準備中';
-        color = Colors.blue;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.4),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEventCard(EventModel event) {
-    return GestureDetector(
-      onTap: () => _showEventDetails(event),
-      child: Container(
-        height: 140,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
-              child: SizedBox(
-                width: 120,
-                height: double.infinity,
-                child: event.eventImage.isNotEmpty
-                    ? Image.network(event.eventImage, fit: BoxFit.cover)
-                    : Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, size: 40),
-                      ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.eventName,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      event.eventTime,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          EventStatus.getLabel(event.status),
-                          style: TextStyle(
-                            fontSize: 12, 
-                            fontWeight: FontWeight.bold,
-                            color: event.status == EventStatus.active ? Colors.green : Colors.grey,
-                          ),
-                        ),
-                        const Text(
-                          '詳細を見る >',
-                          style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -625,6 +679,26 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
+  Widget _buildStatusBadge(String status) {
+    String label;
+    Color color;
+    switch (status) {
+      case EventStatus.active: label = '営業中'; color = Colors.green; break;
+      case EventStatus.breakTime: label = '休憩中'; color = Colors.orange; break;
+      case EventStatus.finished: label = '終了'; color = Colors.grey; break;
+      default: label = '準備中'; color = Colors.blue; break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+    );
+  }
+
   Widget _buildBusinessLinkWithFollow(String adminId) {
     if (adminId.isEmpty) return const SizedBox.shrink();
     return FutureBuilder<DocumentSnapshot>(
@@ -715,7 +789,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
         children: [
           _buildCircleButton(
             icon: Icons.close,
-            onPressed: () => setState(() => _selectedEvent = null),
+            onPressed: () => setState(() {}),
           ),
           _buildCircleButton(
             icon: Icons.store_mall_directory_outlined,
@@ -724,6 +798,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
               MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
             ),
           ),
+          // ★ ホームアイコンを削除しました
           _buildCircleButton(
             icon: Icons.person_outline,
             onPressed: () {
