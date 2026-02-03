@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:io'; // Platform判定用
-import 'package:flutter/foundation.dart'; // ★追加: Web判定(kIsWeb)用
+import 'package:flutter/foundation.dart'; // Web判定(kIsWeb)用
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -20,6 +20,9 @@ import 'package:google_map_app/features/user_flow/presentation/widgets/map_circl
 import 'package:google_map_app/core/constants/event_status.dart';
 import 'package:google_map_app/core/utils/map_utils.dart';
 
+// ★ 追加: 通知サービスをインポート
+import 'package:google_map_app/core/service/fcm_service.dart';
+
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
 
@@ -31,6 +34,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
   final FirestoreService _firestoreService = FirestoreService();
+
+  // ★ 追加: 通知サービスのインスタンス化
+  final FcmService _fcmService = FcmService();
 
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
   LatLng? _currentPosition;
@@ -52,6 +58,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     super.initState();
     _eventsStream = _firestoreService.getEventsStream();
     _initializeLocation();
+
+    // ★ 追加: 通知機能の初期化（権限リクエスト・トークン保存）
+    _fcmService.initialize();
 
     _sonarController = AnimationController(
       vsync: this,
@@ -127,21 +136,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     }
   }
 
-  // ★ 修正: Webとアプリ両方に対応したマップ起動メソッド
+  // マップ起動メソッド (Web/Mobile対応版)
   Future<void> _openMapApp(double lat, double lng) async {
     Uri url;
     
-    // 1. Webの場合 (Chromeなど)
     if (kIsWeb) {
-      // ブラウザでGoogle Mapsを開く
       url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
-    } 
-    // 2. iOSアプリの場合
-    else if (Platform.isIOS) {
+    } else if (Platform.isIOS) {
       url = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng');
-    } 
-    // 3. Androidアプリの場合
-    else {
+    } else {
       url = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
     }
 
@@ -149,7 +152,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
-        // ネイティブアプリ起動失敗時のフォールバック（ブラウザで開く）
         final fallbackUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
         if (await canLaunchUrl(fallbackUrl)) {
           await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);

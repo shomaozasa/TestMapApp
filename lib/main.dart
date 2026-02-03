@@ -8,10 +8,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // Firebaseオプション
 import 'firebase_options.dart';
 
-// モデル（パスはプロジェクトの構造に合わせて調整してくれ）
-// ※ここでは同じファイルまたは特定フォルダにある想定だぜ
+// モデル
 import 'core/models/user_model.dart';
-import '/core/models/business_user_model.dart';
+import 'core/models/business_user_model.dart'; // パス修正: 先頭の / を削除
 
 // 各画面のインポート
 import 'features/_authentication/presentation/screens/splash_screen.dart';
@@ -51,14 +50,24 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('ja')],
       locale: const Locale('ja'),
-      // ★ 認証ナビゲーションをホームに設定
-      home: const AuthNavigationWrapper(),
+      
+      // ★★★ 修正箇所: 起動画面を SplashScreen に固定 ★★★
+      // 元: home: const AuthNavigationWrapper(),
+      home: const SplashScreen(),
+      
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// AuthNavigationWrapperをStatefulWidgetにして、一度取得したユーザータイプをメモリに保持する
+// ---------------------------------------------------------
+// AuthNavigationWrapper は「自動ログイン機能」として残しておきますが、
+// 今回のフロー（スプラッシュ→アカウント確認→...）では
+// メインの home に設定しません。
+// 
+// 将来的に「スプラッシュ画面の中で、ログイン済みならホームへ飛ばす」
+// といった処理をする場合に再利用できます。
+// ---------------------------------------------------------
 class AuthNavigationWrapper extends StatefulWidget {
   const AuthNavigationWrapper({super.key});
 
@@ -76,17 +85,17 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
+          // ここで SplashScreen を返しても、処理が一瞬で終わると表示されないことがあります
           return const SplashScreen();
         }
 
         if (!authSnapshot.hasData) {
-          _cachedUserType = null; // ログアウト時はキャッシュクリア
+          _cachedUserType = null;
           return const LoginScreen();
         }
 
         final uid = authSnapshot.data!.uid;
 
-        // UIDが変わっていない、かつキャッシュがある場合は即座に画面を返す
         if (_lastUid == uid && _cachedUserType != null) {
           return _getHomeScreen(_cachedUserType!);
         }
@@ -103,7 +112,6 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
               return const LoginScreen();
             }
 
-            // キャッシュに保存
             _cachedUserType = data['type'];
             _lastUid = uid;
 
@@ -120,7 +128,6 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
         : const UserHomeScreen();
   }
 
-  // 前回の _checkUserType 関数をここに配置
   Future<Map<String, dynamic>> _checkUserType(String uid) async {
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
@@ -130,10 +137,8 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
       return {'type': 'user', 'model': UserModel.fromFirestore(userDoc)};
     }
 
-    // 2. 次に事業者コレクションを探す
-    // ※コレクション名は自分のプロジェクトに合わせて 'admins' や 'businesses' に変更してくれ
     final businessDoc = await FirebaseFirestore.instance
-        .collection('admins')
+        .collection('businesses') // コレクション名を統一 (businesses推奨)
         .doc(uid)
         .get();
     if (businessDoc.exists) {
@@ -143,7 +148,6 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
       };
     }
 
-    // どちらにもない場合
     return {'type': 'none'};
   }
 }

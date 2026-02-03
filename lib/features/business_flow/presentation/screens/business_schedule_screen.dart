@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ★ ID取得用に推奨
+
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/features/business_flow/presentation/screens/business_map_screen.dart';
+// ★ 追加: 編集画面をインポート
+import 'package:google_map_app/features/business_flow/presentation/screens/business_event_edit_screen.dart';
 
 class BusinessScheduleScreen extends StatefulWidget {
   const BusinessScheduleScreen({super.key});
@@ -13,7 +17,8 @@ class BusinessScheduleScreen extends StatefulWidget {
 }
 
 class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
-  final String _testAdminId = 'test_user_id';
+  // ログイン中のIDを取得 (テスト用IDではなく実IDを使用)
+  String get _currentAdminId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
@@ -23,7 +28,6 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   final Map<DateTime, String> _holidayMap = {
-     // ... (祝日データは以前と同じなので省略可ですが、記述が必要です)
     DateTime(2025, 1, 1): '元日',
     DateTime(2025, 1, 13): '成人の日',
     DateTime(2025, 2, 11): '建国記念の日',
@@ -54,22 +58,20 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     initializeDateFormatting('ja_JP'); 
   }
 
-  // ★ 修正: eventTime 文字列から日付を解析してグループ化
+  // eventTime 文字列から日付を解析してグループ化
   Map<DateTime, List<EventModel>> _groupEventsByDate(List<EventModel> events) {
     Map<DateTime, List<EventModel>> data = {};
     for (var event in events) {
       DateTime eventDate;
       
-      // eventTime は "2026/01/20 10:00 - 12:00" のような形式になっているはず
       try {
         final parts = event.eventTime.split(' ');
         if (parts.isNotEmpty) {
-          final datePart = parts[0]; // "2026/01/20"
-          final ymd = datePart.split('/');
+          final datePart = parts[0]; 
+          final ymd = datePart.split('/'); // 2026/01/20 -> [2026, 01, 20]
           if (ymd.length == 3) {
             eventDate = DateTime(int.parse(ymd[0]), int.parse(ymd[1]), int.parse(ymd[2]));
           } else {
-            // パース失敗時は作成日を使う（フォールバック）
             eventDate = event.createdAt.toDate();
           }
         } else {
@@ -89,17 +91,11 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     return data;
   }
 
-  // ... (_getEventsForDay, _getHolidayName, build メソッドの前半部分は変更なし) ...
-  // ※ buildメソッド内の TableCalendar までは以前のコードと同じです。
-  // FloatingActionButton のみを変更します。
-
-  // ... (省略: TableCalendarの実装など) ...
-  
-  // 省略したメソッド: _getEventsForDay, _getHolidayName
   List<EventModel> _getEventsForDay(DateTime day) {
     final dayKey = DateTime(day.year, day.month, day.day);
     return _events[dayKey] ?? [];
   }
+
   String? _getHolidayName(DateTime day) {
     final dayKey = DateTime(day.year, day.month, day.day);
     return _holidayMap[dayKey];
@@ -117,12 +113,12 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
         foregroundColor: Colors.black,
       ),
       body: StreamBuilder<List<EventModel>>(
-        stream: _firestoreService.getFutureEventsStream(_testAdminId),
+        stream: _firestoreService.getFutureEventsStream(_currentAdminId),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             _events = _groupEventsByDate(snapshot.data!);
           }
-          // ... (カレンダー表示部分のコードは以前と同じなので、そのまま使用してください) ...
+          
           return Column(
             children: [
                Container(
@@ -194,16 +190,14 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
           );
         },
       ),
-      // ★ 修正: ボタンを押したときに日付を渡す
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // 選択中の日付があればそれを、なければ今日を渡す
           final targetDate = _selectedDay ?? DateTime.now();
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => BusinessMapScreen(
-                initialDate: targetDate, // ★ 引数で渡す
+                initialDate: targetDate,
               ),
             ),
           );
@@ -215,23 +209,23 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     );
   }
 
-  // _buildCalendarCell, _buildEventList, _showDetailModal 等のUIメソッドは
-  // 直前のコードと同じなので省略します（実際にはファイルに含めてください）
-  
-  // (以下、直前のコードと同じUI構築メソッド群)
   Widget _buildCalendarCell(DateTime day, {bool isToday = false, bool isSelected = false}) {
-    // ... (前回と同じコード) ...
     final holidayName = _getHolidayName(day);
     final isHoliday = holidayName != null;
     final isSunday = day.weekday == DateTime.sunday;
     final isSaturday = day.weekday == DateTime.saturday;
-    Color? backgroundColor; BoxBorder? border;
+    
+    Color? backgroundColor; 
+    BoxBorder? border;
+    
     if (isSelected) { backgroundColor = Colors.orange; } 
     else if (isToday) { backgroundColor = Colors.white; border = Border.all(color: Colors.orange, width: 2); } 
     else if (isHoliday || isSunday) { backgroundColor = Colors.red.shade50; } 
     else if (isSaturday) { backgroundColor = Colors.blue.shade50; }
+    
     Color textColor = Colors.black87;
     if (isSelected) { textColor = Colors.white; } else if (isHoliday || isSunday) { textColor = Colors.red; } else if (isSaturday) { textColor = Colors.blue; }
+    
     return Container(
       margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(10), border: border),
@@ -283,9 +277,8 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     );
   }
 
+  // ★ 修正: モーダルに編集ボタンを追加
   void _showDetailModal(EventModel event) {
-    // ... (省略: 変更なし) ...
-    // 前のコードと同じ内容を記述してください
      showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -372,21 +365,51 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
                       
                       const SizedBox(height: 40),
                       
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _confirmDelete(event);
-                          },
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          label: const Text("この予定を削除", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.red.shade200),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      // ★ 修正: 編集・削除ボタンを横並びに配置
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  // 編集画面へ遷移
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => BusinessEventEditScreen(event: event),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.edit),
+                                label: const Text("編集"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(context); // モーダルを閉じてから削除確認へ
+                                  _confirmDelete(event);
+                                },
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                label: const Text("削除", style: TextStyle(color: Colors.red)),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: Colors.red.shade200),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                     ],
@@ -401,7 +424,6 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   }
   
   Widget _buildDetailRow(IconData icon, String label, String value) {
-    // ... (省略: 変更なし) ...
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -429,7 +451,6 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   }
 
   void _confirmDelete(EventModel event) {
-    // ... (省略: 変更なし) ...
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
