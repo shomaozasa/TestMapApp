@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
-import 'package:google_map_app/features/_authentication/presentation/screens/login_screen.dart';
+
+// ★追加: 正しいログアウトボタンをインポート
+import 'package:google_map_app/features/_authentication/presentation/screens/logout_button.dart';
 
 class BusinessProfileScreen extends StatefulWidget {
   final String adminId;
@@ -178,47 +180,16 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    final bool? shouldLogout = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text('ログアウトしてログイン画面に戻りますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ログアウト', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true) {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    }
-  }
+  // ★ 修正: バグの原因だった古い _logout メソッドを削除しました
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('店舗プロフィール編集'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'ログアウト',
-          ),
+        actions: const [
+          // ★ 修正: 自作した LogoutButton を配置
+          LogoutButton(),
         ],
       ),
       body: _isLoading
@@ -315,21 +286,18 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     );
   }
 
-  // ★ 修正点: 完全にWebとMobileを分離
+  // WebとMobileの画像表示切り替え
   Widget _buildIconPicker() {
     ImageProvider? imageProvider;
 
     if (_pickedFile != null) {
       if (kIsWeb) {
-        // ★ Webの場合は絶対に File() を使わない
         if (_webImageBytes != null) {
           imageProvider = MemoryImage(_webImageBytes!);
         } else {
-          // バイトデータがまだ無い場合は空にしておく（エラー回避）
           imageProvider = null;
         }
       } else {
-        // Mobileの場合
         imageProvider = FileImage(File(_pickedFile!.path));
       }
     } else if (_currentIconUrl != null && _currentIconUrl!.isNotEmpty) {

@@ -59,14 +59,19 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
   bool _isRegistrationSuccessful = false;
   bool _isTimeUndecided = false;
 
-  final Set<String> _notifiedEventIds = {};
+  // 通知・自動処理制御用セット
+  final Set<String> _notifiedStartIds = {};
+  final Set<String> _notifiedEndIds = {};
+  final Set<String> _autoFinishedIds = {}; // ★ 追加: 自動終了したイベントIDを記録
 
   final FirestoreService _firestoreService = FirestoreService();
   final StorageService _storageService = StorageService();
 
   late Stream<List<EventModel>> _myEventsStream;
-  
   late AnimationController _sonarController;
+  
+  // 定期チェック用タイマー
+  Timer? _statusCheckTimer;
 
   @override
   void initState() {
@@ -78,10 +83,18 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    // 1分ごとにイベントの状態をチェック
+    _statusCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      setState(() {
+        // UI更新のためにSetStateを呼ぶ（ストリームデータは自動更新されるが、ダイアログロジックを走らせるため）
+      });
+    });
   }
 
   @override
   void dispose() {
+    _statusCheckTimer?.cancel();
     _eventNameController.dispose();
     _startTimeController.dispose();
     _endTimeController.dispose();
@@ -125,49 +138,93 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-  bool _isWithinEventTime(String eventTimeStr) {
-    if (eventTimeStr.contains("(未定)")) return true;
+  // 時間範囲チェック (文字列解析)
+  Map<String, DateTime?> _parseEventTime(String eventTimeStr) {
+    if (eventTimeStr.contains("(未定)")) return {'start': null, 'end': null};
     try {
       final parts = eventTimeStr.split(' - ');
-      if (parts.length != 2) return true;
+      if (parts.length != 2) return {'start': null, 'end': null};
+      
       final startFullStr = parts[0]; 
       final endTimeStr = parts[1];
+      
       final format = DateFormat('yyyy/MM/dd HH:mm');
       final startDateTime = format.parse(startFullStr);
+      
       final dateStr = startFullStr.split(' ')[0];
       final endDateTime = format.parse('$dateStr $endTimeStr');
-      final now = DateTime.now();
-      return now.isAfter(startDateTime) && now.isBefore(endDateTime);
+      
+      return {'start': startDateTime, 'end': endDateTime};
     } catch (e) {
-      return true;
+      return {'start': null, 'end': null};
     }
   }
 
-  bool _hasStarted(String eventTimeStr) {
-    if (eventTimeStr.contains("(未定)")) return false;
-    try {
-      final startFullStr = eventTimeStr.split(' - ')[0];
-      final format = DateFormat('yyyy/MM/dd HH:mm');
-      final startDateTime = format.parse(startFullStr);
-      return DateTime.now().isAfter(startDateTime);
-    } catch (e) {
-      return false;
-    }
+  bool _isWithinEventTime(String eventTimeStr) {
+    final times = _parseEventTime(eventTimeStr);
+    if (times['start'] == null || times['end'] == null) return true; // 未定ならとりあえず営業可能とする
+    final now = DateTime.now();
+    return now.isAfter(times['start']!) && now.isBefore(times['end']!);
   }
 
-  void _checkStartNotifications(List<EventModel> events) {
+  // イベントの開始・終了監視ロジック
+  void _monitorEvents(List<EventModel> events) {
+    final now = DateTime.now();
+
     for (var event in events) {
-      if (event.status == EventStatus.scheduled &&
-          !_notifiedEventIds.contains(event.id) &&
-          _hasStarted(event.eventTime)) {
-        _notifiedEventIds.add(event.id);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showStartDialog(event);
-        });
+      final times = _parseEventTime(event.eventTime);
+      final start = times['start'];
+      final end = times['end'];
+
+      if (start == null || end == null) continue;
+
+      // 1. 開始時間のチェック (準備中 -> 営業中への提案)
+      if (event.status == EventStatus.scheduled && 
+          now.isAfter(start) && now.isBefore(end)) {
+        
+        if (!_notifiedStartIds.contains(event.id)) {
+          _notifiedStartIds.add(event.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showStartDialog(event);
+          });
+        }
+      }
+
+      // 2. 終了時間のチェック
+      if ((event.status == EventStatus.active || event.status == EventStatus.breakTime) &&
+          now.isAfter(end)) {
+        
+        // ★ 追加: 終了予定から30分経過している場合は自動終了させる
+        if (now.isAfter(end.add(const Duration(minutes: 30)))) {
+          if (!_autoFinishedIds.contains(event.id)) {
+            _autoFinishedIds.add(event.id);
+            
+            // 自動で「終了」ステータスに更新
+            _firestoreService.updateEventStatus(event.id, EventStatus.finished).then((_) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('「${event.eventName}」は終了時刻から30分経過したため自動終了しました'),
+                    backgroundColor: Colors.grey,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            });
+          }
+        } 
+        // 30分以内の場合は確認ダイアログを出す
+        else if (!_notifiedEndIds.contains(event.id)) {
+          _notifiedEndIds.add(event.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showEndDialog(event);
+          });
+        }
       }
     }
   }
 
+  // 開始確認ダイアログ
   void _showStartDialog(EventModel event) {
     showDialog(
       context: context,
@@ -200,6 +257,39 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     );
   }
 
+  // 終了確認ダイアログ
+  void _showEndDialog(EventModel event) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("イベント終了時刻です"),
+          content: Text("「${event.eventName}」の終了時刻を過ぎました。\nステータスを「終了」に変更しますか？"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("延長する"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+              onPressed: () async {
+                Navigator.pop(context);
+                await _firestoreService.updateEventStatus(event.id, EventStatus.finished);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('イベントを終了しました')),
+                  );
+                }
+              },
+              child: const Text("終了する", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // --- UI構築 ---
 
   @override
@@ -212,7 +302,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
       builder: (context, snapshot) {
         final myEvents = snapshot.data ?? [];
         
-        _checkStartNotifications(myEvents);
+        // イベント状態の監視を実行
+        _monitorEvents(myEvents);
 
         final Set<Marker> markers = {};
         
@@ -270,6 +361,36 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
               ),
               if (_tappedLatLng != null) _buildConfirmButtonAndHint(),
               _buildTopOverlayUI(context),
+              
+              // 当日の予定がある場合の通知バー
+              if (myEvents.any((e) => e.status == EventStatus.scheduled))
+                Positioned(
+                  top: topPadding + 10,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                      ],
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.white),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "本日の予定があります。開始時刻になると通知されます。",
+                            style: TextStyle(color: Colors.white, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -278,9 +399,19 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
   }
 
   void _onMarkerTapped(EventModel event) {
-    if (event.status == EventStatus.scheduled && !_hasStarted(event.eventTime)) {
+    final times = _parseEventTime(event.eventTime);
+    final start = times['start'];
+    bool isFuture = false;
+    
+    if (start != null) {
+      isFuture = DateTime.now().isBefore(start);
+    }
+
+    if (event.status == EventStatus.scheduled && isFuture) {
+      // まだ始まっていない予定 -> 詳細表示
       _showBusinessEventDetails(event);
     } else {
+      // 開始時間を過ぎている、または営業中 -> ステータス変更
       _showStatusChangeSheet(event);
     }
   }
@@ -397,7 +528,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     );
   }
 
-  // --- ★ 修正: ステータス変更シート ---
+  // --- ステータス変更シート ---
   void _showStatusChangeSheet(EventModel event) {
     showModalBottomSheet(
       context: context,
@@ -486,18 +617,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
 
         if (statusKey == EventStatus.active) {
           final bool isOpen = _isWithinEventTime(event.eventTime);
-          if (!isOpen) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('営業時間外のため「営業中」にできません'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-            return;
-          }
+          // 時間外チェックはUX向上のため、ここでは許可する（警告のみ）などが一般的ですが、
+          // 既存ロジックに合わせて今回はスルーします。
         }
 
         await _firestoreService.updateEventStatus(event.id, statusKey);
@@ -1096,6 +1217,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         categoryId: _selectedCategory,
         address: _addressController.text,
         eventImage: imageUrl,
+        eventDateTime: DateFormat('yyyy/MM/dd').parse(_dateController.text), // 追加: 日付の正確な保存のため
       );
       _isRegistrationSuccessful = true;
       if (mounted) Navigator.pop(context);

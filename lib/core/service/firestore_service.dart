@@ -31,6 +31,27 @@ class FirestoreService {
     final geoPoint = GeoPoint(location.latitude, location.longitude);
     final now = Timestamp.now();
 
+    // eventTime文字列から日付を解析して、検索用の eventDate を正確にセットする
+    // (例: "2026/02/04 10:00 - 18:00")
+    Timestamp searchDateTimestamp = now;
+    try {
+      final datePart = eventTime.split(' ').first; // "2026/02/04"
+      final parts = datePart.split('/');
+      if (parts.length == 3) {
+        final date = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+        searchDateTimestamp = Timestamp.fromDate(date);
+      }
+    } catch (_) {
+      // パース失敗時は現在時刻を入れる（または引数のeventDateTimeを使う）
+      if (eventDateTime != null) {
+        searchDateTimestamp = Timestamp.fromDate(eventDateTime);
+      }
+    }
+
     final data = {
       'adminId': _userId,
       'categoryId': categoryId,
@@ -43,26 +64,34 @@ class FirestoreService {
       'status': EventStatus.scheduled,
       'createdAt': now,
       'updatedAt': now,
-      'eventDate': eventDateTime != null
-          ? Timestamp.fromDate(eventDateTime)
-          : now,
+      'eventDate': searchDateTimestamp, // ★ 検索用に日付を正規化して保存
     };
 
     await collectionRef.add(data);
   }
 
-  // --- 2. 全イベント一覧の取得 (ユーザー用) ---
+  // --- 2. 全イベント一覧の取得 (ユーザー用: 今日のイベントのみ表示) ---
   Stream<List<EventModel>> getEventsStream({
     String? keyword,
     String? category,
     DateTime? selectedDate,
   }) {
-    final DateTime threshold = DateTime.now().subtract(const Duration(hours: 24));
-    final Timestamp thresholdTimestamp = Timestamp.fromDate(threshold);
+    // ★ 修正: 「今日」の範囲を定義
+    final now = DateTime.now();
+    // 検索日付が指定されていればそれを、なければ「今日」を使う
+    final targetDate = selectedDate ?? DateTime(now.year, now.month, now.day);
+    
+    final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+    final endOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59, 59);
 
+    final startTimestamp = Timestamp.fromDate(startOfDay);
+    final endTimestamp = Timestamp.fromDate(endOfDay);
+
+    // eventDate が 指定日(今日) の範囲内にあるものを取得
     Query query = _db
         .collection('events')
-        .where('eventDate', isGreaterThan: thresholdTimestamp)
+        .where('eventDate', isGreaterThanOrEqualTo: startTimestamp)
+        .where('eventDate', isLessThanOrEqualTo: endTimestamp)
         .orderBy('eventDate', descending: true);
 
     return query.snapshots().map((snapshot) {
@@ -71,23 +100,13 @@ class FirestoreService {
       }).toList();
 
       return events.where((event) {
+        // カテゴリフィルタ
         final bool matchesCategory =
             (category == null ||
             category == 'すべて' ||
             event.categoryId == category);
 
-        bool matchesDate = true;
-        if (selectedDate != null) {
-          try {
-            final eventDateTime = DateTime.parse(event.eventTime.split(' ').first.replaceAll('/', '-'));
-             matchesDate =
-                eventDateTime.isAfter(selectedDate) ||
-                eventDateTime.isAtSameMomentAs(selectedDate);
-          } catch (e) {
-            matchesDate = true; 
-          }
-        }
-
+        // キーワードフィルタ
         bool matchesKeyword = true;
         if (keyword != null && keyword.isNotEmpty) {
           final lowKeyword = keyword.toLowerCase();
@@ -96,7 +115,7 @@ class FirestoreService {
               event.description.toLowerCase().contains(lowKeyword);
         }
 
-        return matchesCategory && matchesDate && matchesKeyword;
+        return matchesCategory && matchesKeyword;
       }).toList();
     });
   }
@@ -106,7 +125,7 @@ class FirestoreService {
     required String eventId,
     required String eventName,
     required String eventTime,
-    String? newImageUrl, // 画像が変更された場合のみ渡す
+    String? newImageUrl, 
     required String categoryId,
     required String description,
   }) async {
@@ -118,7 +137,6 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    // 画像が変更された場合のみURLを更新
     if (newImageUrl != null && newImageUrl.isNotEmpty) {
       data['eventImage'] = newImageUrl;
     }
@@ -242,7 +260,7 @@ class FirestoreService {
     await _db.collection('events').doc(eventId).delete();
   }
 
-  // --- ★ 追加: 通知用トークン管理 (これが抜けていました) ---
+  // --- 通知用トークン管理 ---
   Future<void> saveUserToken(String uid, String token) async {
     try {
       await _db.collection('users').doc(uid).set({
