@@ -524,7 +524,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                     ),
                     Slider(
                       value: tempDistance,
-                      min: 1, max: 50, divisions: 49,
+                      min: 1, max: 20, divisions: 19,
                       label: '${tempDistance.toInt()} km',
                       onChanged: (val) => setPanelState(() => tempDistance = val),
                     ),
