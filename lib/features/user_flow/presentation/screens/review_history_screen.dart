@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ★追加
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_map_app/core/models/review_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 
-// ★追加
-import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
-import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
+// ★追加: コントロールパネルをインポート
+import 'package:google_map_app/features/user_flow/presentation/widgets/user_control_panel.dart';
 
 class ReviewHistoryScreen extends StatefulWidget {
   const ReviewHistoryScreen({super.key});
@@ -33,12 +32,10 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
           child: Container(color: Colors.grey.shade200, height: 1.0),
         ),
       ),
-      // ★ 変更: Stackにする
       body: Stack(
         children: [
           Column(
             children: [
-              // フィルタボタンエリア
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
@@ -54,7 +51,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                 ),
               ),
               
-              // 日付指定エリア
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
@@ -70,7 +66,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
               
               const SizedBox(height: 10),
 
-              // リスト表示
               Expanded(
                 child: StreamBuilder<List<ReviewModel>>(
                   stream: _firestoreService.getUserReviewsStream(),
@@ -90,7 +85,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                     final reviews = snapshot.data!;
 
                     return ListView.builder(
-                      // ★ 下部にパネル分の余白を追加
                       padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
                       itemCount: reviews.length,
                       itemBuilder: (context, index) {
@@ -104,75 +98,14 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
             ],
           ),
 
-          // ★ 追加: コントロールパネル
-          Positioned(
+          // ★修正: 共通コンポーネントを使用
+          const Positioned(
             bottom: 30,
             left: 20,
             right: 20,
-            child: _buildCustomBottomBar(),
+            child: UserControlPanel(),
           ),
         ],
-      ),
-    );
-  }
-
-  // ★ 追加: コントロールパネルのビルドメソッド
-  Widget _buildCustomBottomBar() {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: const Color(0xFFCDE8F6).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(35),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildCircleButton(
-            icon: Icons.close,
-            onPressed: () => Navigator.pop(context),
-          ),
-          _buildCircleButton(
-            icon: Icons.store_mall_directory_outlined,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
-            ),
-          ),
-          _buildCircleButton(
-            icon: Icons.person_outline,
-            onPressed: () {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                // すでにプロフィール画面から来ている場合は戻るだけでも良いが、統一してPushする
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => UserProfileScreen(userId: user.uid)),
-                );
-              }
-            },
-          ),
-          _buildCircleButton(
-            icon: Icons.search,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('マップ画面で検索してください')),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircleButton({IconData? icon, required VoidCallback onPressed}) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.grey.shade700, size: 28),
       ),
     );
   }

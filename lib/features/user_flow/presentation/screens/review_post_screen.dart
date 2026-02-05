@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ★追加
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 
-// ★追加: 遷移先画面
-import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
-import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
+// ★追加: コントロールパネルをインポート
+import 'package:google_map_app/features/user_flow/presentation/widgets/user_control_panel.dart';
 
 class ReviewPostScreen extends StatefulWidget {
   final EventModel event;
@@ -74,18 +73,15 @@ class _ReviewPostScreenState extends State<ReviewPostScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      // ★ 変更: Stackでラップしてコントロールパネルを重ねる
       body: Stack(
         children: [
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
-                  // ★ 下部にパネル分の余白(120px)を追加
                   padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 120),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 事業者・イベント情報エリア
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -138,7 +134,6 @@ class _ReviewPostScreenState extends State<ReviewPostScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // 星評価
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -166,7 +161,6 @@ class _ReviewPostScreenState extends State<ReviewPostScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // 入力フォーム
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text("レビュータイトル", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
@@ -198,7 +192,6 @@ class _ReviewPostScreenState extends State<ReviewPostScreen> {
                       ),
                       const SizedBox(height: 40),
 
-                      // フッターボタン
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -222,75 +215,14 @@ class _ReviewPostScreenState extends State<ReviewPostScreen> {
                   ),
                 ),
           
-          // ★ 追加: コントロールパネル
-          Positioned(
+          // ★修正: 共通コンポーネントを使用 (引数なしでOK)
+          const Positioned(
             bottom: 30,
             left: 20,
             right: 20,
-            child: _buildCustomBottomBar(),
+            child: UserControlPanel(),
           ),
         ],
-      ),
-    );
-  }
-
-  // ★ 追加: コントロールパネルのビルドメソッド
-  Widget _buildCustomBottomBar() {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: const Color(0xFFCDE8F6).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(35),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildCircleButton(
-            icon: Icons.close,
-            onPressed: () => Navigator.pop(context), // 閉じる = 前の画面へ
-          ),
-          _buildCircleButton(
-            icon: Icons.store_mall_directory_outlined,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
-            ),
-          ),
-          _buildCircleButton(
-            icon: Icons.person_outline,
-            onPressed: () {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => UserProfileScreen(userId: user.uid)),
-                );
-              }
-            },
-          ),
-          _buildCircleButton(
-            icon: Icons.search,
-            onPressed: () {
-              // ここではマップ検索はできないので、メッセージを出すか何もしない
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('マップ画面で検索してください')),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircleButton({IconData? icon, required VoidCallback onPressed}) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.grey.shade700, size: 28),
       ),
     );
   }

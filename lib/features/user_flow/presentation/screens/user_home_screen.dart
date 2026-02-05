@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:io'; // Platform判定用
-import 'package:flutter/foundation.dart'; // Web判定(kIsWeb)用
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -13,17 +13,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
-import 'package:google_map_app/features/user_flow/presentation/screens/favorite_list_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
-import 'package:google_map_app/features/user_flow/presentation/screens/user_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
 import 'package:google_map_app/core/constants/event_status.dart';
 import 'package:google_map_app/core/utils/map_utils.dart';
-
 import 'package:google_map_app/core/service/fcm_service.dart';
-
-// ★ 追加: レビュー投稿画面をインポート
 import 'package:google_map_app/features/user_flow/presentation/screens/review_post_screen.dart';
+
+// ★追加: コントロールパネルをインポート
+import 'package:google_map_app/features/user_flow/presentation/widgets/user_control_panel.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -52,7 +50,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   DateTime? _searchDate;
   double _searchDistance = 1.0;
 
-  // 円の表示フラグ
   bool _hasSearched = false;
 
   @override
@@ -60,7 +57,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     super.initState();
     _eventsStream = _firestoreService.getEventsStream();
     _initializeLocation();
-    _fcmService.initialize(); // 通知機能の初期化
+    _fcmService.initialize();
 
     _sonarController = AnimationController(
       vsync: this,
@@ -84,7 +81,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
       if (mounted) {
         setState(() {
           _currentPosition = newLatLng;
-          _hasSearched = true; // 初回位置取得時も範囲を表示
+          _hasSearched = true;
         });
         _zoomToFitCircle(newLatLng, _searchDistance);
       }
@@ -222,7 +219,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
             );
           }).toSet();
 
-          // 円の表示設定
           final Set<Circle> circles = {};
           if (_hasSearched && _currentPosition != null) {
             circles.add(
@@ -239,7 +235,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
 
           return Stack(
             children: [
-              // 1. マップレイヤー
               AnimatedBuilder(
                 animation: _sonarController,
                 builder: (context, child) {
@@ -271,7 +266,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                 },
               ),
 
-              // 2. イベントカード表示 (選択時のみ)
               if (_selectedEvent != null)
                 Positioned(
                   bottom: 120,
@@ -280,12 +274,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                   child: _buildEventCard(_selectedEvent!),
                 ),
 
-              // 3. コントロールパネル
+              // ★ 修正: 共通コンポーネントを使用し、カスタム動作を渡す
               Positioned(
                 bottom: 30,
                 left: 20,
                 right: 20,
-                child: _buildCustomBottomBar(),
+                child: UserControlPanel(
+                  onClose: () => setState(() => _selectedEvent = null),
+                  onSearch: _showSearchPanel,
+                ),
               ),
             ],
           );
@@ -507,13 +504,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                             style: const TextStyle(fontSize: 16, height: 1.5),
                           ),
 
-                          // ★ 追加: レビュー表示位置と投稿ボタン
                           const SizedBox(height: 30),
                           const Divider(height: 40),
                           const Text('レビュー', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 16),
                           
-                          // レビューリストのプレースホルダー (まだデータがないため)
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
@@ -531,7 +526,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           
                           const SizedBox(height: 16),
                           
-                          // レビュー投稿画面への遷移ボタン
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
@@ -554,7 +548,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                               ),
                             ),
                           ),
-                          const SizedBox(height: 40), // 下部余白
+                          const SizedBox(height: 40),
                         ],
                       ),
                     ),
@@ -679,63 +673,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildCustomBottomBar() {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: const Color(0xFFCDE8F6).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(35),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildCircleButton(
-            icon: Icons.close,
-            onPressed: () => setState(() => _selectedEvent = null),
-          ),
-          _buildCircleButton(
-            icon: Icons.store_mall_directory_outlined,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
-            ),
-          ),
-          // ホームアイコン削除済み
-          _buildCircleButton(
-            icon: Icons.person_outline,
-            onPressed: () {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null)
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => UserProfileScreen(userId: user.uid),
-                  ),
-                );
-            },
-          ),
-          _buildCircleButton(icon: Icons.search, onPressed: _showSearchPanel),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircleButton({IconData? icon, required VoidCallback onPressed}) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.grey.shade700, size: 28),
-      ),
     );
   }
 
