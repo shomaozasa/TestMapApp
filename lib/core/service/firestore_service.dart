@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/template_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
+import 'package:google_map_app/core/models/review_model.dart'; // ★追加: レビューモデル
 import 'package:google_map_app/core/constants/event_status.dart';
 
 class FirestoreService {
@@ -32,10 +33,9 @@ class FirestoreService {
     final now = Timestamp.now();
 
     // eventTime文字列から日付を解析して、検索用の eventDate を正確にセットする
-    // (例: "2026/02/04 10:00 - 18:00")
     Timestamp searchDateTimestamp = now;
     try {
-      final datePart = eventTime.split(' ').first; // "2026/02/04"
+      final datePart = eventTime.split(' ').first; // 例: "2026/02/04"
       final parts = datePart.split('/');
       if (parts.length == 3) {
         final date = DateTime(
@@ -46,7 +46,7 @@ class FirestoreService {
         searchDateTimestamp = Timestamp.fromDate(date);
       }
     } catch (_) {
-      // パース失敗時は現在時刻を入れる（または引数のeventDateTimeを使う）
+      // 解析失敗時は引数の日時を使用
       if (eventDateTime != null) {
         searchDateTimestamp = Timestamp.fromDate(eventDateTime);
       }
@@ -70,13 +70,13 @@ class FirestoreService {
     await collectionRef.add(data);
   }
 
-  // --- 2. 全イベント一覧の取得 (ユーザー用: 今日のイベントのみ表示) ---
+  // --- 2. 全イベント一覧の取得 (ユーザー用) ---
+  // 指定日（デフォルトは今日）のイベントを取得するよう修正済み
   Stream<List<EventModel>> getEventsStream({
     String? keyword,
     String? category,
     DateTime? selectedDate,
   }) {
-    // ★ 修正: 「今日」の範囲を定義
     final now = DateTime.now();
     // 検索日付が指定されていればそれを、なければ「今日」を使う
     final targetDate = selectedDate ?? DateTime(now.year, now.month, now.day);
@@ -144,7 +144,7 @@ class FirestoreService {
     await _db.collection('events').doc(eventId).update(data);
   }
 
-  // --- 2-2. ステータス更新 ---
+  // --- ステータス更新 ---
   Future<void> updateEventStatus(String eventId, String newStatus) async {
     try {
       await _db.collection('events').doc(eventId).update({
@@ -260,6 +260,77 @@ class FirestoreService {
     await _db.collection('events').doc(eventId).delete();
   }
 
+  // --- レビュー機能 ---
+  
+  /// レビューを投稿する
+  /// 保存時に事業者情報を取得し、店舗名(shopName)も含めて保存する
+  Future<void> addReview({
+    required String businessId,
+    required String eventId,
+    required String eventName,
+    required int rating,
+    required String comment,
+  }) async {
+    if (_userId.isEmpty) return;
+
+    // 1. 店舗名を取得 (BusinessUserModelのadmin_name)
+    String shopName = '';
+    try {
+      final businessDoc = await _db.collection('businesses').doc(businessId).get();
+      if (businessDoc.exists) {
+        final data = businessDoc.data();
+        shopName = data?['admin_name'] ?? '';
+      }
+    } catch (e) {
+      debugPrint('店舗名取得エラー: $e');
+    }
+
+    // 2. レビューを保存
+    await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .add({
+      'businessId': businessId,
+      'userId': _userId,
+      'eventId': eventId,
+      'eventName': eventName,
+      'shopName': shopName, // ★追加: 取得した店舗名を保存
+      'rating': rating,
+      'comment': comment,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 事業者へのレビュー一覧を取得 (事業者画面用)
+  Stream<List<ReviewModel>> getBusinessReviewsStream(String businessId) {
+    return _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => ReviewModel.fromFirestore(doc)).toList();
+    });
+  }
+
+  /// ★追加: ログインユーザーの投稿したレビュー一覧を取得 (利用者画面用)
+  /// [Collection Group Query] を使用
+  Stream<List<ReviewModel>> getUserReviewsStream() {
+    if (_userId.isEmpty) return Stream.value([]);
+
+    // 'reviews' という名前のコレクションすべての中から、userIdが一致するものを探す
+    return _db
+        .collectionGroup('reviews')
+        .where('userId', isEqualTo: _userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => ReviewModel.fromFirestore(doc)).toList();
+    });
+  }
+
   // --- 通知用トークン管理 ---
   Future<void> saveUserToken(String uid, String token) async {
     try {
@@ -267,7 +338,6 @@ class FirestoreService {
         'fcmToken': token,
         'lastTokenUpdate': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      
       debugPrint("FCMトークンを保存しました: $token");
     } catch (e) {
       debugPrint("トークン保存エラー: $e");

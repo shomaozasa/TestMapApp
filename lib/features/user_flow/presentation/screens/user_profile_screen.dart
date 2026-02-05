@@ -7,8 +7,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_map_app/core/models/user_model.dart';
 
-// ★追加: 作成したログアウトボタンをインポート
+// 作成したログアウトボタンをインポート
 import 'package:google_map_app/features/_authentication/presentation/screens/logout_button.dart';
+// ★ 追加: レビュー履歴画面をインポート
+import 'package:google_map_app/features/user_flow/presentation/screens/review_history_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -143,16 +145,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  // ★ ログアウトメソッド(_logout)は削除しました（LogoutButton内に移動したため）
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('マイページ'),
         actions: const [
-          // ★ 修正: 切り出したコンポーネントを配置するだけ！
-          LogoutButton(),
+          LogoutButton(), // ログアウトボタン
         ],
       ),
       body: _isLoading
@@ -195,6 +194,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         minimumSize: const Size(double.infinity, 50),
                       ),
                       child: const Text('変更を保存', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    
+                    // ★ 追加: レビュー履歴画面への遷移ボタン
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ReviewHistoryScreen()),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: Colors.grey),
+                        ),
+                        child: const Text("レビュー履歴を見る", style: TextStyle(color: Colors.black87)),
+                      ),
                     ),
                   ],
                 ),

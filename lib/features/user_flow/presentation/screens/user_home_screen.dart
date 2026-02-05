@@ -3,7 +3,6 @@ import 'dart:math';
 import 'dart:io'; // Platform判定用
 import 'package:flutter/foundation.dart'; // Web判定(kIsWeb)用
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,15 +22,8 @@ import 'package:google_map_app/core/utils/map_utils.dart';
 
 import 'package:google_map_app/core/service/fcm_service.dart';
 
-// マウスでのドラッグ操作を許可するためのクラス
-class AppScrollBehavior extends MaterialScrollBehavior {
-  @override
-  Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-      };
-}
+// ★ 追加: レビュー投稿画面をインポート
+import 'package:google_map_app/features/user_flow/presentation/screens/review_post_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -47,28 +39,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
 
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
   LatLng? _currentPosition;
+  late AnimationController _sonarController;
 
   late Stream<List<EventModel>> _eventsStream;
-  List<EventModel> _sortedEvents = [];
-
-  late PageController _pageController; 
-  int _currentCardIndex = 0;
+  
+  // 選択中のイベント（nullならカード非表示）
+  EventModel? _selectedEvent;
 
   // 検索条件
   String _searchKeyword = "";
   String _searchCategory = "すべて";
   DateTime? _searchDate;
-  double _searchDistance = 1.0; 
+  double _searchDistance = 1.0;
 
-  late AnimationController _sonarController;
+  // 円の表示フラグ
+  bool _hasSearched = false;
 
   @override
   void initState() {
     super.initState();
     _eventsStream = _firestoreService.getEventsStream();
-    _pageController = PageController(viewportFraction: 0.85);
     _initializeLocation();
-    _fcmService.initialize();
+    _fcmService.initialize(); // 通知機能の初期化
 
     _sonarController = AnimationController(
       vsync: this,
@@ -79,7 +71,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   @override
   void dispose() {
     _sonarController.dispose();
-    _pageController.dispose();
     super.dispose();
   }
 
@@ -89,9 +80,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
         desiredAccuracy: LocationAccuracy.high,
       );
       final newLatLng = LatLng(position.latitude, position.longitude);
-      
+
       if (mounted) {
-        setState(() => _currentPosition = newLatLng);
+        setState(() {
+          _currentPosition = newLatLng;
+          _hasSearched = true; // 初回位置取得時も範囲を表示
+        });
         _zoomToFitCircle(newLatLng, _searchDistance);
       }
     } catch (e) {
@@ -104,10 +98,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     double radiusLat = radiusKm / 111.32;
     double radiusLng = radiusKm / (40075.0 * cos(center.latitude * pi / 180) / 360);
 
-    LatLng southwest = LatLng(center.latitude - radiusLat, center.longitude - radiusLng);
-    LatLng northeast = LatLng(center.latitude + radiusLat, center.longitude + radiusLng);
+    LatLng southwest = LatLng(
+      center.latitude - radiusLat,
+      center.longitude - radiusLng,
+    );
+    LatLng northeast = LatLng(
+      center.latitude + radiusLat,
+      center.longitude + radiusLng,
+    );
 
-    LatLngBounds bounds = LatLngBounds(southwest: southwest, northeast: northeast);
+    LatLngBounds bounds = LatLngBounds(
+      southwest: southwest,
+      northeast: northeast,
+    );
     controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
   }
 
@@ -127,6 +130,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
       _searchCategory = category;
       _searchDate = date;
       _searchDistance = distance;
+      _hasSearched = true;
 
       _eventsStream = _firestoreService.getEventsStream(
         keyword: _searchKeyword,
@@ -142,6 +146,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
 
   Future<void> _openMapApp(double lat, double lng) async {
     Uri url;
+
     if (kIsWeb) {
       url = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
     } else if (Platform.isIOS) {
@@ -160,33 +165,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
         }
       }
     } catch (e) {
-      debugPrint('マップ起動エラー: $e');
-    }
-  }
-
-  void _onPageChanged(int index) async {
-    setState(() => _currentCardIndex = index);
-    if (_sortedEvents.isNotEmpty && index < _sortedEvents.length) {
-      final event = _sortedEvents[index];
-      final GoogleMapController controller = await _controller.future;
-      
-      controller.animateCamera(
-        CameraUpdate.newLatLng(
-          LatLng(event.location.latitude - 0.005, event.location.longitude),
-        ),
-      );
+      debugPrint('Map Launch Error: $e');
     }
   }
 
   void _onMarkerTapped(EventModel event) {
-    final index = _sortedEvents.indexWhere((e) => e.id == event.id);
-    if (index != -1) {
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+    setState(() {
+      _selectedEvent = event;
+    });
   }
 
   @override
@@ -224,8 +210,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
             });
           }
           
-          _sortedEvents = events;
-
           final Set<Marker> markers = events.map((event) {
             return Marker(
               markerId: MarkerId(event.id),
@@ -237,6 +221,21 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
               onTap: () => _onMarkerTapped(event),
             );
           }).toSet();
+
+          // 円の表示設定
+          final Set<Circle> circles = {};
+          if (_hasSearched && _currentPosition != null) {
+            circles.add(
+              Circle(
+                circleId: const CircleId('fixed_search_range'),
+                center: _currentPosition!,
+                radius: _searchDistance * 1000,
+                fillColor: Colors.blue.withOpacity(0.08),
+                strokeColor: Colors.blue.withOpacity(0.2),
+                strokeWidth: 2,
+              ),
+            );
+          }
 
           return Stack(
             children: [
@@ -257,46 +256,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                         _controller.complete(controller);
                       }
                     },
+                    onTap: (_) => setState(() => _selectedEvent = null),
                     markers: markers,
                     circles: createSearchRadiusWithSonar(
-                      center: _currentPosition,
-                      radiusKm: _searchDistance,
-                      animationValue: _sonarController.value,
-                    ),
+                        center: _currentPosition,
+                        radiusKm: _searchDistance,
+                        animationValue: _sonarController.value,
+                    ).union(circles),
                     padding: EdgeInsets.only(
                       top: MediaQuery.of(context).padding.top,
-                      bottom: 240, 
+                      bottom: _selectedEvent != null ? 280 : 100,
                     ),
                   );
                 },
               ),
 
-              // 2. イベントカードリスト (PageView)
-              if (events.isNotEmpty)
+              // 2. イベントカード表示 (選択時のみ)
+              if (_selectedEvent != null)
                 Positioned(
-                  bottom: 110,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 150,
-                    child: Listener(
-                      behavior: HitTestBehavior.opaque,
-                      onPointerDown: (_) {},
-                      onPointerMove: (_) {},
-                      onPointerUp: (_) {},
-                      child: ScrollConfiguration(
-                        behavior: AppScrollBehavior(),
-                        child: PageView.builder(
-                          controller: _pageController,
-                          itemCount: events.length,
-                          onPageChanged: _onPageChanged,
-                          itemBuilder: (context, index) {
-                            return _buildEventCardItem(events[index]);
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
+                  bottom: 120,
+                  left: 20,
+                  right: 20,
+                  child: _buildEventCard(_selectedEvent!),
                 ),
 
               // 3. コントロールパネル
@@ -313,34 +294,68 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildEventCardItem(EventModel event) {
+  Widget _buildStatusBadge(String status) {
+    String label;
+    Color color;
+    switch (status) {
+      case EventStatus.active:
+        label = '営業中';
+        color = Colors.green;
+        break;
+      case EventStatus.breakTime:
+        label = '休憩中';
+        color = Colors.orange;
+        break;
+      case EventStatus.finished:
+        label = '終了';
+        color = Colors.grey;
+        break;
+      default:
+        label = '準備中';
+        color = Colors.blue;
+        break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventCard(EventModel event) {
     return GestureDetector(
       onTap: () => _showEventDetails(event),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8),
+        height: 140,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
         ),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(16),
+              ),
               child: SizedBox(
-                width: 110,
+                width: 120,
                 height: double.infinity,
                 child: event.eventImage.isNotEmpty
                     ? Image.network(event.eventImage, fit: BoxFit.cover)
                     : Container(
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                        child: const Icon(Icons.image),
                       ),
               ),
             ),
@@ -349,48 +364,47 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSmallStatusBadge(event.status),
-                        if (_currentPosition != null)
-                          Text(
-                            _calculateDistance(event.location),
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
                     Text(
                       event.eventName,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
+                    Text(
+                      event.eventTime,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const Spacer(),
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Icon(Icons.access_time, size: 12, color: Colors.black54),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            event.eventTime,
-                            style: const TextStyle(fontSize: 11, color: Colors.black54),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          EventStatus.getLabel(event.status),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: event.status == EventStatus.active
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        ),
+                        const Text(
+                          '詳細を見る >',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
-                    ),
-                    const Spacer(),
-                    const Align(
-                      alignment: Alignment.bottomRight,
-                      child: Text(
-                        '詳細 >',
-                        style: TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
-                      ),
                     ),
                   ],
                 ),
@@ -399,176 +413,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
           ],
         ),
       ),
-    );
-  }
-
-  String _calculateDistance(LatLng target) {
-    if (_currentPosition == null) return "";
-    double distInMeters = Geolocator.distanceBetween(
-      _currentPosition!.latitude, _currentPosition!.longitude,
-      target.latitude, target.longitude,
-    );
-    if (distInMeters < 1000) {
-      return "${distInMeters.toInt()}m";
-    } else {
-      return "${(distInMeters / 1000).toStringAsFixed(1)}km";
-    }
-  }
-
-  Widget _buildSmallStatusBadge(String status) {
-    Color color;
-    String label;
-    switch (status) {
-      case EventStatus.active: color = Colors.green; label = "営業中"; break;
-      case EventStatus.breakTime: color = Colors.orange; label = "休憩中"; break;
-      case EventStatus.finished: color = Colors.grey; label = "終了"; break;
-      default: color = Colors.blue; label = "準備中"; break;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color, width: 1),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  PreferredSizeWidget? _buildAppBar() {
-    return null;
-  }
-
-  void _showSearchPanel() {
-    String tempCategory = _searchCategory;
-    double tempDistance = _searchDistance;
-    DateTime? tempDate = _searchDate;
-    final TextEditingController keywordController = TextEditingController(text: _searchKeyword);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setPanelState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 20, right: 20, top: 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('検索・絞り込み', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        TextButton(
-                          onPressed: () {
-                            setPanelState(() {
-                              keywordController.clear();
-                              tempCategory = 'すべて';
-                              tempDistance = 1.0;
-                              tempDate = null;
-                            });
-                          },
-                          child: const Text('リセット', style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: keywordController,
-                      decoration: InputDecoration(
-                        hintText: 'キーワードを入力...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('日時以降', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.calendar_today, color: Colors.blue),
-                      title: Text(tempDate == null ? '指定なし' : DateFormat('yyyy/MM/dd HH:mm').format(tempDate!)),
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (date != null) {
-                          final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                          if (time != null) {
-                            setPanelState(() {
-                              tempDate = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                            });
-                          }
-                        }
-                      },
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('距離範囲', style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text('${tempDistance.toInt()} km 以内', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Slider(
-                      value: tempDistance,
-                      min: 1, max: 20, divisions: 19,
-                      label: '${tempDistance.toInt()} km',
-                      onChanged: (val) => setPanelState(() => tempDistance = val),
-                    ),
-                    const Text('カテゴリ', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['すべて', 'グルメ', '体験', '展示', 'ライブ'].map((cat) {
-                        return ChoiceChip(
-                          label: Text(cat),
-                          selected: tempCategory == cat,
-                          onSelected: (val) => setPanelState(() => tempCategory = cat),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue, foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        ),
-                        onPressed: () {
-                          _applySearch(
-                            keyword: keywordController.text,
-                            category: tempCategory,
-                            date: tempDate,
-                            distance: tempDistance,
-                          );
-                          Navigator.pop(context);
-                        },
-                        child: const Text('この条件で検索', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
@@ -590,10 +434,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                     child: SizedBox(
                       height: 200,
-                      width: double.infinity,
                       child: event.eventImage.isNotEmpty
                           ? Image.network(event.eventImage, fit: BoxFit.cover)
                           : const Icon(Icons.image, size: 50),
@@ -605,21 +450,23 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildStatusBadge(event.status),
-                            ],
-                          ),
+                          _buildStatusBadge(event.status),
                           const SizedBox(height: 12),
                           Text(
                             event.eventName,
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 24),
                           _buildBusinessLinkWithFollow(event.adminId),
                           const SizedBox(height: 24),
-                          _buildInfoRow(Icons.access_time, '日時', event.eventTime),
+                          _buildInfoRow(
+                            Icons.access_time,
+                            '日時',
+                            event.eventTime,
+                          ),
                           const SizedBox(height: 16),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,7 +502,59 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           const Divider(height: 40),
                           const Text('詳細情報', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
-                          Text(event.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+                          Text(
+                            event.description,
+                            style: const TextStyle(fontSize: 16, height: 1.5),
+                          ),
+
+                          // ★ 追加: レビュー表示位置と投稿ボタン
+                          const SizedBox(height: 30),
+                          const Divider(height: 40),
+                          const Text('レビュー', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          
+                          // レビューリストのプレースホルダー (まだデータがないため)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "まだレビューはありません",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // レビュー投稿画面への遷移ボタン
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ReviewPostScreen(event: event),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.rate_review, size: 20),
+                              label: const Text("レビューを書く"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.shade50,
+                                foregroundColor: Colors.orange,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 40), // 下部余白
                         ],
                       ),
                     ),
@@ -679,37 +578,23 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    String label;
-    Color color;
-    switch (status) {
-      case EventStatus.active: label = '営業中'; color = Colors.green; break;
-      case EventStatus.breakTime: label = '休憩中'; color = Colors.orange; break;
-      case EventStatus.finished: label = '終了'; color = Colors.grey; break;
-      default: label = '準備中'; color = Colors.blue; break;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 4, offset: const Offset(0, 2))],
-      ),
-      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-    );
-  }
-
   Widget _buildBusinessLinkWithFollow(String adminId) {
     if (adminId.isEmpty) return const SizedBox.shrink();
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('businesses').doc(adminId).get(),
+      future: FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(adminId)
+          .get(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) return const SizedBox.shrink();
+        if (!snapshot.hasData || !snapshot.data!.exists)
+          return const SizedBox.shrink();
         final business = BusinessUserModel.fromFirestore(snapshot.data!);
         return InkWell(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => BusinessPublicProfileScreen(adminId: adminId)),
+            MaterialPageRoute(
+              builder: (_) => BusinessPublicProfileScreen(adminId: adminId),
+            ),
           ),
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -721,16 +606,26 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundImage: (business.iconImage?.isNotEmpty ?? false) ? NetworkImage(business.iconImage!) : null,
-                  child: (business.iconImage?.isEmpty ?? true) ? const Icon(Icons.store) : null,
+                  backgroundImage: (business.iconImage?.isNotEmpty ?? false)
+                      ? NetworkImage(business.iconImage!)
+                      : null,
+                  child: (business.iconImage?.isEmpty ?? true)
+                      ? const Icon(Icons.store)
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(business.adminName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Text('プロフィールを見る >', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        business.adminName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'プロフィールを見る >',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                     ],
                   ),
                 ),
@@ -739,14 +634,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                   builder: (context, snapshot) {
                     final isFollowed = snapshot.data ?? false;
                     return ElevatedButton(
-                      onPressed: () => _firestoreService.toggleFollowBusiness(adminId),
+                      onPressed: () =>
+                          _firestoreService.toggleFollowBusiness(adminId),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isFollowed ? Colors.white : Colors.orange,
-                        foregroundColor: isFollowed ? Colors.orange : Colors.white,
+                        backgroundColor: isFollowed
+                            ? Colors.white
+                            : Colors.orange,
+                        foregroundColor: isFollowed
+                            ? Colors.orange
+                            : Colors.white,
                         side: const BorderSide(color: Colors.orange),
                         minimumSize: const Size(60, 32),
                       ),
-                      child: Text(isFollowed ? 'フォロー中' : 'フォロー', style: const TextStyle(fontSize: 11)),
+                      child: Text(
+                        isFollowed ? 'フォロー中' : 'フォロー',
+                        style: const TextStyle(fontSize: 11),
+                      ),
                     );
                   },
                 ),
@@ -767,7 +670,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
               Text(value, style: const TextStyle(fontSize: 15)),
             ],
           ),
@@ -789,7 +695,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
         children: [
           _buildCircleButton(
             icon: Icons.close,
-            onPressed: () => setState(() {}),
+            onPressed: () => setState(() => _selectedEvent = null),
           ),
           _buildCircleButton(
             icon: Icons.store_mall_directory_outlined,
@@ -798,17 +704,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
               MaterialPageRoute(builder: (_) => const FavoriteListScreen()),
             ),
           ),
-          // ★ ホームアイコンを削除しました
+          // ホームアイコン削除済み
           _buildCircleButton(
             icon: Icons.person_outline,
             onPressed: () {
               final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
+              if (user != null)
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => UserProfileScreen(userId: user.uid)),
+                  MaterialPageRoute(
+                    builder: (_) => UserProfileScreen(userId: user.uid),
+                  ),
                 );
-              }
             },
           ),
           _buildCircleButton(icon: Icons.search, onPressed: _showSearchPanel),
@@ -823,9 +730,203 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
       child: Container(
         width: 50,
         height: 50,
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
         child: Icon(icon, color: Colors.grey.shade700, size: 28),
       ),
+    );
+  }
+
+  PreferredSizeWidget? _buildAppBar() {
+    return null;
+  }
+
+  void _showSearchPanel() {
+    String tempCategory = _searchCategory;
+    double tempDistance = _searchDistance;
+    DateTime? tempDate = _searchDate;
+    final TextEditingController keywordController = TextEditingController(text: _searchKeyword);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setPanelState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 20, right: 20, top: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '検索・絞り込み',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setPanelState(() {
+                              keywordController.clear();
+                              tempCategory = 'すべて';
+                              tempDistance = 1.0;
+                              tempDate = null;
+                            });
+                          },
+                          child: const Text(
+                            'リセット',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: keywordController,
+                      decoration: InputDecoration(
+                        hintText: 'キーワードを入力...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '日時以降',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.calendar_today,
+                        color: Colors.blue,
+                      ),
+                      title: Text(
+                        tempDate == null
+                            ? '指定なし'
+                            : DateFormat('yyyy/MM/dd HH:mm').format(tempDate!),
+                      ),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (date != null && mounted) {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.now(),
+                          );
+                          if (time != null) {
+                            setPanelState(() {
+                              tempDate = DateTime(
+                                date.year,
+                                date.month,
+                                date.day,
+                                time.hour,
+                                time.minute,
+                              );
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '距離範囲',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${tempDistance.toInt()} km 以内',
+                          style: const TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: tempDistance,
+                      min: 1,
+                      max: 20,
+                      divisions: 19,
+                      label: '${tempDistance.toInt()} km',
+                      onChanged: (val) =>
+                          setPanelState(() => tempDistance = val),
+                    ),
+                    const Text(
+                      'カテゴリ',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: ['すべて', 'グルメ', '体験', '展示', 'ライブ'].map((cat) {
+                        return ChoiceChip(
+                          label: Text(cat),
+                          selected: tempCategory == cat,
+                          onSelected: (val) =>
+                              setPanelState(() => tempCategory = cat),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                        ),
+                        onPressed: () {
+                          _applySearch(
+                            keyword: keywordController.text,
+                            category: tempCategory,
+                            date: tempDate,
+                            distance: tempDistance,
+                          );
+                          Navigator.pop(context);
+                        },
+                        child: const Text(
+                          'この条件で検索',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
