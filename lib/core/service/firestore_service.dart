@@ -330,6 +330,37 @@ class FirestoreService {
       return snapshot.docs.map((doc) => ReviewModel.fromFirestore(doc)).toList();
     });
   }
+  /// 利用者が自分のレビューを編集する
+  Future<void> updateUserReview({
+    required String businessId,
+    required String reviewId,
+    required int rating,
+    required String comment,
+  }) async {
+    await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .doc(reviewId)
+        .update({
+      'rating': rating,
+      'comment': comment,
+      // 編集日時を記録したい場合は 'updatedAt': FieldValue.serverTimestamp() を追加
+    });
+  }
+  /// 利用者が自分のレビューを削除する
+  Future<void> deleteUserReview({
+    required String businessId,
+    required String reviewId,
+  }) async {
+    // パスを指定して削除
+    await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .doc(reviewId)
+        .delete();
+  }
 
   // --- レビュー返信機能 ---
 
