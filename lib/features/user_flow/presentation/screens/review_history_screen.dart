@@ -16,7 +16,12 @@ class ReviewHistoryScreen extends StatefulWidget {
 class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
-  // 削除確認ダイアログ
+  // --- フィルタ・ソート用の状態変数 ---
+  bool _isDescending = true; // true: 新しい順, false: 古い順
+  String? _selectedShopName; // 店舗名でフィルタ (nullなら全店舗)
+  int? _selectedMinRating;   // 星の数でフィルタ (nullなら全評価)
+
+  // 削除確認
   Future<void> _confirmDelete(ReviewModel review) async {
     final bool? shouldDelete = await showDialog<bool>(
       context: context,
@@ -61,12 +66,10 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
 
   // 編集ダイアログ
   Future<void> _showEditDialog(ReviewModel review) async {
-    // 既存データの展開
     int currentRating = review.rating;
     String initialTitle = "";
     String initialBody = review.comment;
 
-    // タイトルと本文の分離
     if (review.comment.contains("\n\n")) {
       final parts = review.comment.split("\n\n");
       initialTitle = parts[0];
@@ -79,7 +82,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
     await showDialog(
       context: context,
       builder: (context) {
-        // ダイアログ内で状態（星の数）を変えるために StatefulBuilder を使用
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -97,9 +99,7 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           iconSize: 32,
-                          onPressed: () {
-                            setState(() => currentRating = index + 1);
-                          },
+                          onPressed: () => setState(() => currentRating = index + 1),
                           icon: Icon(
                             index < currentRating ? Icons.star : Icons.star_border,
                             color: Colors.amber,
@@ -111,10 +111,7 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                     const Text("タイトル", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     TextField(
                       controller: titleController,
-                      decoration: const InputDecoration(
-                        hintText: 'タイトルを入力',
-                        isDense: true,
-                      ),
+                      decoration: const InputDecoration(hintText: 'タイトルを入力', isDense: true),
                     ),
                     const SizedBox(height: 16),
                     const Text("内容", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
@@ -137,7 +134,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     if (bodyController.text.isEmpty) return;
-
                     final String fullComment = titleController.text.isNotEmpty
                         ? "${titleController.text}\n\n${bodyController.text}"
                         : bodyController.text;
@@ -167,6 +163,118 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
     );
   }
 
+  // --- フィルタ選択用ダイアログ ---
+
+  // 店舗選択
+  void _showShopFilterDialog(List<String> shopNames) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("店舗で絞り込み", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                title: const Text("すべて表示"),
+                leading: Radio<String?>(
+                  value: null,
+                  groupValue: _selectedShopName,
+                  onChanged: (v) {
+                    setState(() => _selectedShopName = v);
+                    Navigator.pop(context);
+                  },
+                ),
+                onTap: () {
+                  setState(() => _selectedShopName = null);
+                  Navigator.pop(context);
+                },
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: shopNames.length,
+                  itemBuilder: (context, index) {
+                    final name = shopNames[index];
+                    return ListTile(
+                      title: Text(name),
+                      leading: Radio<String?>(
+                        value: name,
+                        groupValue: _selectedShopName,
+                        onChanged: (v) {
+                          setState(() => _selectedShopName = v);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      onTap: () {
+                        setState(() => _selectedShopName = name);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // 星の数選択
+  void _showRatingFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("評価で絞り込み", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                title: const Text("すべて表示"),
+                leading: Radio<int?>(
+                  value: null,
+                  groupValue: _selectedMinRating,
+                  onChanged: (v) {
+                    setState(() => _selectedMinRating = v);
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+              const Divider(),
+              ...List.generate(5, (index) {
+                final rating = 5 - index; // 5, 4, 3...
+                return ListTile(
+                  title: Row(children: [
+                    Text("$rating "),
+                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                    const Text(" 以上"),
+                  ]),
+                  leading: Radio<int?>(
+                    value: rating,
+                    groupValue: _selectedMinRating,
+                    onChanged: (v) {
+                      setState(() => _selectedMinRating = v);
+                      Navigator.pop(context);
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,71 +292,130 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
       ),
       body: Stack(
         children: [
-          Column(
-            children: [
-              // フィルタボタンエリア
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildFilterButton('最近', isSelected: true),
-                    const SizedBox(width: 12),
-                    _buildFilterButton('カテゴリ'),
-                    const SizedBox(width: 12),
-                    _buildFilterButton('店舗'),
-                  ],
-                ),
-              ),
+          // Firestoreデータ取得
+          StreamBuilder<List<ReviewModel>>(
+            stream: _firestoreService.getUserReviewsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text("エラー: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+              }
+
+              // 元のリスト
+              List<ReviewModel> reviews = snapshot.data ?? [];
+
+              // --- フィルタリング処理 ---
               
-              // 日付指定エリア
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildDateBox("2025/10/06"),
-                    const Text("~", style: TextStyle(fontSize: 20, color: Colors.grey)),
-                    _buildDateBox("-/-/-"),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 10),
+              // 1. 店舗名フィルタ
+              if (_selectedShopName != null) {
+                reviews = reviews.where((r) => r.shopName == _selectedShopName).toList();
+              }
 
-              // リスト表示
-              Expanded(
-                child: StreamBuilder<List<ReviewModel>>(
-                  stream: _firestoreService.getUserReviewsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+              // 2. 星フィルタ
+              if (_selectedMinRating != null) {
+                reviews = reviews.where((r) => r.rating >= _selectedMinRating!).toList();
+              }
 
-                    if (snapshot.hasError) {
-                      return Center(child: Text("エラー: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
-                    }
+              // 3. ソート (日付)
+              reviews.sort((a, b) {
+                return _isDescending
+                    ? b.createdAt.compareTo(a.createdAt)
+                    : a.createdAt.compareTo(b.createdAt);
+              });
 
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(child: Text("まだレビュー履歴はありません", style: TextStyle(color: Colors.grey)));
-                    }
+              // 店舗名リストの作成（フィルタダイアログ用）
+              final allShopNames = (snapshot.data ?? [])
+                  .map((r) => r.shopName)
+                  .toSet()
+                  .toList(); // 重複排除
 
-                    final reviews = snapshot.data!;
+              // 日付範囲の取得（表示用）
+              String dateRange = "-/-/- ~ -/-/-";
+              if (reviews.isNotEmpty) {
+                // ソート済みなので先頭と末尾を使う
+                final start = reviews.last.createdAt; // 古い方
+                final end = reviews.first.createdAt;  // 新しい方
+                // 表示順が逆（降順）の場合は入れ替え
+                final firstDate = _isDescending ? start : end;
+                final lastDate = _isDescending ? end : start;
+                
+                final fmt = DateFormat('yyyy/MM/dd');
+                dateRange = "${fmt.format(firstDate)} ~ ${fmt.format(lastDate)}";
+              }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
-                      itemCount: reviews.length,
-                      itemBuilder: (context, index) {
-                        final review = reviews[index];
-                        return _buildReviewCard(review);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+              return Column(
+                children: [
+                  // フィルタボタンエリア
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.only(top: 16.0, bottom: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // 最近（ソート切り替え）
+                        _buildFilterButton(
+                          label: '最近',
+                          icon: _isDescending ? Icons.arrow_downward : Icons.arrow_upward,
+                          isSelected: true, // 常にアクティブ扱い
+                          onTap: () {
+                            setState(() => _isDescending = !_isDescending);
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        // 評価（カテゴリの代わり）
+                        _buildFilterButton(
+                          label: _selectedMinRating == null ? '評価' : '★$_selectedMinRating↑',
+                          isSelected: _selectedMinRating != null,
+                          onTap: _showRatingFilterDialog,
+                        ),
+                        const SizedBox(width: 12),
+                        // 店舗
+                        _buildFilterButton(
+                          label: _selectedShopName ?? '店舗',
+                          isSelected: _selectedShopName != null,
+                          onTap: () => _showShopFilterDialog(allShopNames),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // 日付指定エリア
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(dateRange, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 10),
+
+                  // リスト表示
+                  Expanded(
+                    child: reviews.isEmpty
+                        ? const Center(child: Text("条件に一致するレビューはありません", style: TextStyle(color: Colors.grey)))
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+                            itemCount: reviews.length,
+                            itemBuilder: (context, index) {
+                              final review = reviews[index];
+                              return _buildReviewCard(review);
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
           ),
 
           // 共通コンポーネント
@@ -263,33 +430,37 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
     );
   }
 
-  Widget _buildFilterButton(String label, {bool isSelected = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.black87 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : Colors.black54,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
+  Widget _buildFilterButton({
+    required String label,
+    IconData? icon,
+    bool isSelected = false,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.black87 : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            if (icon != null) ...[
+              const SizedBox(width: 4),
+              Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.black54),
+            ],
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDateBox(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(text, style: const TextStyle(fontSize: 12, color: Colors.black87)),
     );
   }
 
@@ -321,7 +492,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 上部：店舗名・日付・星・★メニューボタン
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -349,7 +519,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                 ),
               ),
               
-              // 星評価とメニューボタンを横並び
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -372,7 +541,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
                   ),
                   const SizedBox(height: 4),
                   
-                  // ★ 「...」メニューボタン
                   PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -427,7 +595,6 @@ class _ReviewHistoryScreenState extends State<ReviewHistoryScreen> {
             style: const TextStyle(fontSize: 13, height: 1.6, color: Colors.black54),
           ),
 
-          // 返信がある場合は表示
           if (review.replyComment != null) ...[
             const SizedBox(height: 16),
             Container(

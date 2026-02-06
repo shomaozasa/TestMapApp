@@ -4,15 +4,24 @@ import 'package:intl/intl.dart';
 import 'package:google_map_app/core/models/review_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 
-class BusinessReviewManagementScreen extends StatelessWidget {
+class BusinessReviewManagementScreen extends StatefulWidget {
   final String adminId;
 
   const BusinessReviewManagementScreen({super.key, required this.adminId});
 
   @override
-  Widget build(BuildContext context) {
-    final FirestoreService firestoreService = FirestoreService();
+  State<BusinessReviewManagementScreen> createState() => _BusinessReviewManagementScreenState();
+}
 
+class _BusinessReviewManagementScreenState extends State<BusinessReviewManagementScreen> {
+  final FirestoreService firestoreService = FirestoreService();
+
+  // --- 状態変数 ---
+  bool _isAscending = false; // 日付順序 (false: 新しい順/降順, true: 古い順/昇順)
+  String _filterType = 'all'; // 絞り込み ('all', 'replied', 'unreplied')
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -21,42 +30,140 @@ class BusinessReviewManagementScreen extends StatelessWidget {
         elevation: 0,
         foregroundColor: Colors.black,
       ),
-      body: StreamBuilder<List<ReviewModel>>(
-        stream: firestoreService.getBusinessReviewsStream(adminId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Column(
+        children: [
+          // --- コントロールエリア (並び替え・絞り込み) ---
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              children: [
+                // 1. 絞り込みボタン (ChoiceChips)
+                Row(
+                  children: [
+                    const Text("絞り込み: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _buildFilterChip('すべて', 'all'),
+                        _buildFilterChip('未返信', 'unreplied'),
+                        _buildFilterChip('返信済', 'replied'),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 2. 並び替えボタン
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isAscending = !_isAscending;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                              size: 16,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _isAscending ? "古い順 (昇順)" : "新しい順 (降順)",
+                              style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          const Divider(height: 1),
 
-          if (snapshot.hasError) {
-            return Center(child: Text("エラーが発生しました: ${snapshot.error}"));
-          }
+          // --- リスト表示エリア ---
+          Expanded(
+            child: StreamBuilder<List<ReviewModel>>(
+              stream: firestoreService.getBusinessReviewsStream(widget.adminId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.rate_review_outlined, size: 60, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text("まだレビューは届いていません", style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
+                if (snapshot.hasError) {
+                  return Center(child: Text("エラーが発生しました: ${snapshot.error}"));
+                }
 
-          final reviews = snapshot.data!;
+                // データのフィルタリングとソート
+                List<ReviewModel> reviews = snapshot.data ?? [];
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: reviews.length,
-            itemBuilder: (context, index) {
-              final review = reviews[index];
-              return _BusinessReviewCard(review: review); // adminIdはreviewモデル内に持っているので不要
-            },
-          );
-        },
+                // 1. 絞り込み
+                if (_filterType == 'unreplied') {
+                  reviews = reviews.where((r) => r.replyComment == null || r.replyComment!.isEmpty).toList();
+                } else if (_filterType == 'replied') {
+                  reviews = reviews.where((r) => r.replyComment != null && r.replyComment!.isNotEmpty).toList();
+                }
+
+                // 2. 並び替え (日付)
+                reviews.sort((a, b) {
+                  final compare = a.createdAt.compareTo(b.createdAt);
+                  return _isAscending ? compare : -compare; // 昇順ならそのまま、降順なら反転
+                });
+
+                if (reviews.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 60, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text("条件に一致するレビューはありません", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: reviews.length,
+                  itemBuilder: (context, index) {
+                    final review = reviews[index];
+                    return _BusinessReviewCard(review: review);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  // フィルタチップの構築
+  Widget _buildFilterChip(String label, String value) {
+    final bool isSelected = _filterType == value;
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black87)),
+      selected: isSelected,
+      selectedColor: Colors.orange,
+      backgroundColor: Colors.grey[100],
+      onSelected: (bool selected) {
+        if (selected) {
+          setState(() {
+            _filterType = value;
+          });
+        }
+      },
     );
   }
 }
@@ -166,7 +273,7 @@ class _BusinessReviewCardState extends State<_BusinessReviewCard> {
     }
 
     // 返信済みかどうか
-    final bool hasReply = widget.review.replyComment != null;
+    final bool hasReply = widget.review.replyComment != null && widget.review.replyComment!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
