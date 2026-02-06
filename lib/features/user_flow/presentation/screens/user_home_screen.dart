@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
+import 'package:google_map_app/core/models/review_model.dart'; // ★追加
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
 import 'package:google_map_app/core/constants/event_status.dart';
@@ -20,7 +21,7 @@ import 'package:google_map_app/core/utils/map_utils.dart';
 import 'package:google_map_app/core/service/fcm_service.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/review_post_screen.dart';
 
-// ★追加: コントロールパネルをインポート
+// コントロールパネルをインポート
 import 'package:google_map_app/features/user_flow/presentation/widgets/user_control_panel.dart';
 
 class UserHomeScreen extends StatefulWidget {
@@ -274,7 +275,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                   child: _buildEventCard(_selectedEvent!),
                 ),
 
-              // ★ 修正: 共通コンポーネントを使用し、カスタム動作を渡す
+              // 共通コンポーネントを使用し、カスタム動作を渡す
               Positioned(
                 bottom: 30,
                 left: 20,
@@ -509,19 +510,39 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           const Text('レビュー', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 16),
                           
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "まだレビューはありません",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
+                          // ★ 修正: レビューリストを表示
+                          StreamBuilder<List<ReviewModel>>(
+                            // 事業者IDに紐づくレビューを取得
+                            stream: _firestoreService.getBusinessReviewsStream(event.adminId),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              
+                              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                return _buildNoReviewPlaceholder();
+                              }
+
+                              // このイベントIDに該当するものだけフィルタリング
+                              final eventReviews = snapshot.data!
+                                  .where((r) => r.eventId == event.id)
+                                  .toList();
+
+                              if (eventReviews.isEmpty) {
+                                return _buildNoReviewPlaceholder();
+                              }
+
+                              // レビューがある場合
+                              return ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(), // 親のスクロールに任せる
+                                itemCount: eventReviews.length,
+                                separatorBuilder: (context, index) => const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  return _EventReviewCard(review: eventReviews[index]);
+                                },
+                              );
+                            },
                           ),
                           
                           const SizedBox(height: 16),
@@ -569,6 +590,23 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNoReviewPlaceholder() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Center(
+        child: Text(
+          "まだレビューはありません",
+          style: TextStyle(color: Colors.grey),
+        ),
+      ),
     );
   }
 
@@ -862,6 +900,112 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
               ),
             );
           },
+        );
+      },
+    );
+  }
+}
+
+// ★ 追加: イベント詳細用レビューカード（投稿者情報付き）
+class _EventReviewCard extends StatelessWidget {
+  final ReviewModel review;
+  const _EventReviewCard({required this.review});
+
+  @override
+  Widget build(BuildContext context) {
+    // タイトルと本文を分割
+    String title = "";
+    String content = review.comment;
+    if (review.comment.contains("\n\n")) {
+      final parts = review.comment.split("\n\n");
+      title = parts[0];
+      content = parts.sublist(1).join("\n\n");
+    }
+
+    // 投稿者情報を取得して表示
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(review.userId).get(),
+      builder: (context, snapshot) {
+        String userName = "匿名ユーザー";
+        String? userIcon;
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          userName = data['user_name'] ?? "匿名ユーザー";
+          userIcon = data['icon_image'];
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ユーザー情報と星
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundImage: userIcon != null && userIcon.isNotEmpty
+                        ? NetworkImage(userIcon)
+                        : null,
+                    child: (userIcon == null || userIcon.isEmpty)
+                        ? const Icon(Icons.person, size: 20, color: Colors.white)
+                        : null,
+                    backgroundColor: Colors.grey.shade300,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Row(
+                    children: List.generate(5, (index) {
+                      return Icon(
+                        Icons.star,
+                        size: 14,
+                        color: index < review.rating ? Colors.amber : Colors.grey.shade300,
+                      );
+                    }),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              
+              // タイトル（ある場合）
+              if (title.isNotEmpty) ...[
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+              ],
+              
+              // 本文
+              Text(
+                content,
+                style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87),
+              ),
+            ],
+          ),
         );
       },
     );
