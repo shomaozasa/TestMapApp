@@ -13,7 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/models/business_user_model.dart';
-import 'package:google_map_app/core/models/review_model.dart'; // ★追加
+import 'package:google_map_app/core/models/review_model.dart';
 import 'package:google_map_app/features/user_flow/presentation/screens/business_public_profile_screen.dart';
 import 'package:google_map_app/features/user_flow/presentation/widgets/map_circle_helper.dart';
 import 'package:google_map_app/core/constants/event_status.dart';
@@ -275,7 +275,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                   child: _buildEventCard(_selectedEvent!),
                 ),
 
-              // 共通コンポーネントを使用し、カスタム動作を渡す
               Positioned(
                 bottom: 30,
                 left: 20,
@@ -510,9 +509,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                           const Text('レビュー', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 16),
                           
-                          // ★ 修正: レビューリストを表示
                           StreamBuilder<List<ReviewModel>>(
-                            // 事業者IDに紐づくレビューを取得
                             stream: _firestoreService.getBusinessReviewsStream(event.adminId),
                             builder: (context, snapshot) {
                               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -523,7 +520,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                                 return _buildNoReviewPlaceholder();
                               }
 
-                              // このイベントIDに該当するものだけフィルタリング
                               final eventReviews = snapshot.data!
                                   .where((r) => r.eventId == event.id)
                                   .toList();
@@ -532,10 +528,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                                 return _buildNoReviewPlaceholder();
                               }
 
-                              // レビューがある場合
                               return ListView.separated(
                                 shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(), // 親のスクロールに任せる
+                                physics: const NeverScrollableScrollPhysics(), 
                                 itemCount: eventReviews.length,
                                 separatorBuilder: (context, index) => const SizedBox(height: 16),
                                 itemBuilder: (context, index) {
@@ -906,7 +901,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
   }
 }
 
-// ★ 追加: イベント詳細用レビューカード（投稿者情報付き）
+// イベント詳細用レビューカード（投稿者情報 + 返信表示付き）
 class _EventReviewCard extends StatelessWidget {
   final ReviewModel review;
   const _EventReviewCard({required this.review});
@@ -1004,6 +999,44 @@ class _EventReviewCard extends StatelessWidget {
                 content,
                 style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87),
               ),
+
+              // ★追加: 店舗からの返信がある場合のみ表示
+              if (review.replyComment != null && review.replyComment!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100, // 背景色を薄いグレーに
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.store, size: 16, color: Colors.orange),
+                          SizedBox(width: 4),
+                          Text(
+                            "お店からの返信",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        review.replyComment!,
+                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );

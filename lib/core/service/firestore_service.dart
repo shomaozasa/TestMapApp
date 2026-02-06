@@ -331,6 +331,41 @@ class FirestoreService {
     });
   }
 
+  // --- レビュー返信機能 ---
+
+  /// レビューに返信する（または編集する）
+  Future<void> replyToReview({
+    required String businessId,
+    required String reviewId,
+    required String reply,
+  }) async {
+    await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .doc(reviewId)
+        .update({
+      'replyComment': reply,
+      'repliedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 返信を削除する
+  Future<void> deleteReviewReply({
+    required String businessId,
+    required String reviewId,
+  }) async {
+    await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('reviews')
+        .doc(reviewId)
+        .update({
+      'replyComment': FieldValue.delete(),
+      'repliedAt': FieldValue.delete(),
+    });
+  }
+
   // --- 通知用トークン管理 ---
   Future<void> saveUserToken(String uid, String token) async {
     try {

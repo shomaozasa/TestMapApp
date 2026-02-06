@@ -2,14 +2,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ReviewModel {
   final String id;
-  final String businessId; // レビュー対象の事業者ID
-  final String userId;     // 投稿した利用者ID
-  final String eventId;    // 関連イベントID
-  final String eventName;  // イベント名
-  final String shopName;   // ★追加: 店舗名 (一覧表示用)
-  final int rating;        // 評価 (1-5)
-  final String comment;    // コメント
+  final String businessId;
+  final String userId;
+  final String eventId;
+  final String eventName;
+  final String shopName;
+  final int rating;
+  final String comment;
   final DateTime createdAt;
+  
+  // ★ 追加: 返信用フィールド
+  final String? replyComment; // 返信内容 (nullなら未返信)
+  final DateTime? repliedAt;  // 返信日時
 
   ReviewModel({
     required this.id,
@@ -17,10 +21,12 @@ class ReviewModel {
     required this.userId,
     required this.eventId,
     required this.eventName,
-    required this.shopName, // ★追加
+    required this.shopName,
     required this.rating,
     required this.comment,
     required this.createdAt,
+    this.replyComment, // ★追加
+    this.repliedAt,    // ★追加
   });
 
   Map<String, dynamic> toMap() {
@@ -29,10 +35,13 @@ class ReviewModel {
       'userId': userId,
       'eventId': eventId,
       'eventName': eventName,
-      'shopName': shopName, // ★追加
+      'shopName': shopName,
       'rating': rating,
       'comment': comment,
       'createdAt': Timestamp.fromDate(createdAt),
+      // ★追加
+      'replyComment': replyComment, 
+      'repliedAt': repliedAt != null ? Timestamp.fromDate(repliedAt!) : null,
     };
   }
 
@@ -44,10 +53,13 @@ class ReviewModel {
       userId: data['userId'] ?? '',
       eventId: data['eventId'] ?? '',
       eventName: data['eventName'] ?? '',
-      shopName: data['shopName'] ?? '', // ★追加
+      shopName: data['shopName'] ?? '',
       rating: data['rating'] ?? 0,
       comment: data['comment'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      // ★追加
+      replyComment: data['replyComment'],
+      repliedAt: (data['repliedAt'] as Timestamp?)?.toDate(),
     );
   }
 }
