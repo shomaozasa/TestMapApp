@@ -173,6 +173,32 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     });
   }
 
+  // ★ 追加: 評価表示用の共通ウィジェット
+  Widget _buildRatingRow(double rating, int count, {double size = 14, bool showCount = true}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.star, size: size + 2, color: Colors.amber),
+        const SizedBox(width: 4),
+        Text(
+          count > 0 ? rating.toStringAsFixed(1) : "ー",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: size,
+            color: Colors.black87,
+          ),
+        ),
+        if (showCount) ...[
+          const SizedBox(width: 4),
+          Text(
+            "($count)",
+            style: TextStyle(fontSize: size - 1, color: Colors.grey),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -329,6 +355,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
+  // ★ 修正: イベントカードに評価を追加
   Widget _buildEventCard(EventModel event) {
     return GestureDetector(
       onTap: () => _showEventDetails(event),
@@ -372,6 +399,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
+                    // ★ ここに評価を追加
+                    _buildRatingRow(event.avgRating, event.reviewCount),
+                    const SizedBox(height: 4),
+                    
                     Text(
                       event.eventTime,
                       style: const TextStyle(
@@ -413,6 +444,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
     );
   }
 
+  // ★ 修正: イベント詳細モーダルに評価を追加
   void _showEventDetails(EventModel event) {
     showModalBottomSheet(
       context: context,
@@ -447,7 +479,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> with TickerProviderStat
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildStatusBadge(event.status),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildStatusBadge(event.status),
+                              // ★ 詳細画面では少し大きめに評価を表示
+                              _buildRatingRow(event.avgRating, event.reviewCount, size: 18),
+                            ],
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             event.eventName,

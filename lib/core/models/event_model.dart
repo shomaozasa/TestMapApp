@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-// ★追加: ステータス定数をインポート
 import 'package:google_map_app/core/constants/event_status.dart';
 
-/// Firestoreに保存するイベント情報のデータモデル
 class EventModel {
   final String id;
   final String adminId;
@@ -14,10 +12,13 @@ class EventModel {
   final LatLng location;
   final String address;
   final String description;
-  // ★追加: イベントの状態
   final String status; 
   final Timestamp createdAt;
   final Timestamp updatedAt;
+
+  // ★追加: 平均評価とレビュー数
+  final double avgRating;
+  final int reviewCount;
 
   EventModel({
     required this.id,
@@ -29,10 +30,12 @@ class EventModel {
     required this.location,
     required this.address,
     required this.description,
-    // ★追加: デフォルト値は 'scheduled' (準備中)
     this.status = EventStatus.scheduled,
     required this.createdAt,
     required this.updatedAt,
+    // ★追加
+    this.avgRating = 0.0,
+    this.reviewCount = 0,
   });
 
   double get latitude => location.latitude;
@@ -57,12 +60,12 @@ class EventModel {
       location: latLng,
       address: data['address'] ?? '',
       description: data['description'] ?? '',
-      
-      // ★追加: Firestoreからステータスを取得 (なければデフォルト)
       status: data['status'] ?? EventStatus.scheduled,
-      
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
+      // ★追加
+      avgRating: (data['avgRating'] ?? 0.0).toDouble(),
+      reviewCount: data['reviewCount'] ?? 0,
     );
   }
 
@@ -76,12 +79,12 @@ class EventModel {
       'location': GeoPoint(location.latitude, location.longitude),
       'address': address,
       'description': description,
-      
-      // ★追加: 保存時にもステータスを含める
       'status': status,
-      
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      // ★追加
+      'avgRating': avgRating,
+      'reviewCount': reviewCount,
     };
   }
 }

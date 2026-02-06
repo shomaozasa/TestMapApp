@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BusinessUserModel {
   final String adminId;
-  final String adminName; // 店舗名・事業者名
-  final String ownerName; // 代表者名
+  final String adminName;
+  final String ownerName;
   final String email;
   final String phoneNumber;
   final String adminCategory;
@@ -11,11 +11,15 @@ class BusinessUserModel {
   final String xUrl;
   final String instagramUrl;
   final String? iconImage;
-  final String description; // 自己紹介文
+  final String description;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isAuth;
   final bool isStoped;
+  
+  // ★追加: 平均評価とレビュー数
+  final double avgRating;
+  final int reviewCount;
 
   BusinessUserModel({
     required this.adminId,
@@ -28,14 +32,16 @@ class BusinessUserModel {
     required this.xUrl,
     required this.instagramUrl,
     this.iconImage,
-    this.description = '', // デフォルトは空文字
+    this.description = '',
     required this.createdAt,
     required this.updatedAt,
     this.isAuth = false,
     this.isStoped = false,
+    // ★追加: 初期値は0
+    this.avgRating = 0.0,
+    this.reviewCount = 0,
   });
 
-  // Firestoreからデータを読み込む
   factory BusinessUserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return BusinessUserModel(
@@ -54,10 +60,12 @@ class BusinessUserModel {
       updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isAuth: data['is_auth'] ?? false,
       isStoped: data['is_stoped'] ?? false,
+      // ★追加: データがない場合は0
+      avgRating: (data['avgRating'] ?? 0.0).toDouble(),
+      reviewCount: data['reviewCount'] ?? 0,
     );
   }
 
-  // Firestoreに保存する
   Map<String, dynamic> toMap() {
     return {
       'admin_id': adminId,
@@ -75,6 +83,9 @@ class BusinessUserModel {
       'updated_at': Timestamp.fromDate(updatedAt),
       'is_auth': isAuth,
       'is_stoped': isStoped,
+      // ★追加
+      'avgRating': avgRating,
+      'reviewCount': reviewCount,
     };
   }
 }
