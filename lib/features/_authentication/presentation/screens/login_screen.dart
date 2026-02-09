@@ -17,7 +17,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  
   bool _isLoading = false;
+  bool _isObscure = true; // パスワード表示切替用
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -62,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       var businessDoc = await firestore.collection('businesses').doc(uid).get();
       if (businessDoc.exists) {
         final data = businessDoc.data()!;
-        final isAuth = data['is_auth'] ?? false;
+        final isAuth = data['isAuth'] ?? false;
         final isStopped = data['is_stoped'] ?? false;
 
         if (isStopped) {
@@ -109,58 +111,244 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // スプラッシュ画面と共通のグラデーションカラー
+    const gradientColors = [
+      Color(0xFF90CAF9), // Light Blue
+      Color(0xFFFFCC80), // Light Orange
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: const Text('ログイン')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextFormField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'メールアドレス'),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'メールアドレスを入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: 'パスワード'),
-                obscureText: true,
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'パスワードを入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PasswordResetScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('パスワードを忘れた場合'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+      // AppBarの裏までbodyを広げる
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.white.withOpacity(0.3),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // ロゴ・アイコンエリア
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.lock_person_rounded,
+                      size: 50,
+                      color: Color(0xFFFFCC80), // オレンジ系のアクセント
+                    ),
                   ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('ログイン', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 24),
+                  
+                  // タイトルエリア
+                  const Text(
+                    'ログイン',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(0, 2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'アカウント情報を入力してください',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // フォームカード
+                  Card(
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    color: Colors.white.withOpacity(0.95),
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            // メールアドレス入力
+                            TextFormField(
+                              controller: emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(
+                                labelText: 'メールアドレス',
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                                prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'メールアドレスを入力してください' : null,
+                            ),
+                            const SizedBox(height: 20),
+
+                            // パスワード入力
+                            TextFormField(
+                              controller: passwordController,
+                              obscureText: _isObscure,
+                              decoration: InputDecoration(
+                                labelText: 'パスワード',
+                                labelStyle: TextStyle(color: Colors.grey[600]),
+                                prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isObscure ? Icons.visibility_off : Icons.visibility,
+                                    color: Colors.grey,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isObscure = !_isObscure;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'パスワードを入力してください' : null,
+                            ),
+                            
+                            const SizedBox(height: 12),
+                            
+                            // パスワード忘れリンク
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const PasswordResetScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text(
+                                  'パスワードを忘れた場合',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 32),
+
+                            // ログインボタン (グラデーション)
+                            Container(
+                              width: double.infinity,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(27),
+                                gradient: const LinearGradient(
+                                  colors: gradientColors,
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.withOpacity(0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(27),
+                                  ),
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'ログイン',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -188,11 +376,13 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: emailController.text.trim(),
       );
+      if(!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('リセットメールを送信しました')));
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      if(!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('送信失敗: ${e.message}')));
@@ -204,30 +394,49 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('パスワードリセット')),
-      body: Padding(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('パスワードリセット', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('登録済みメールアドレスを入力してください', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            const Text(
+              '登録済みのメールアドレスを入力してください。\nパスワード再設定用のリンクをお送りします。',
+              style: TextStyle(fontSize: 15, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
             TextField(
               controller: emailController,
-              decoration: const InputDecoration(labelText: 'メールアドレス'),
+              decoration: InputDecoration(
+                labelText: 'メールアドレス',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
             const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _isSending ? null : _sendResetEmail,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isSending ? null : _sendResetEmail,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black87,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
+                child: _isSending
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('送信', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              child: _isSending
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('送信', style: TextStyle(fontSize: 18)),
             ),
           ],
         ),

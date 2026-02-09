@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart'; // ★ kIsWeb用
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -31,8 +31,15 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
   final TextEditingController xUrlController = TextEditingController();
   final TextEditingController instagramController = TextEditingController();
 
-  XFile? _iconImage; // ★ File -> XFileに変更
+  XFile? _iconImage;
   final ImagePicker _picker = ImagePicker();
+  
+  bool _isObscure = true;
+  
+  // テーマカラー（オレンジ）
+  static const Color themeColor = Color(0xFFFF9800);
+  static const Color gradientStart = Color(0xFFFFF3E0); // 薄いオレンジ
+  static const Color gradientEnd = Color(0xFFFFE0B2);   // 少し濃いオレンジ
 
   @override
   void dispose() {
@@ -66,7 +73,7 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
           imageFile: _iconImage,
           title: adminNameController.text.trim(),
           subtitle: "${ownerNameController.text.trim()} (代表)",
-          themeColor: Colors.orange,
+          themeColor: themeColor,
           onConfirm: _performRegistration,
         ),
       ),
@@ -74,6 +81,7 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
   }
 
   Future<void> _performRegistration() async {
+    // ... (ロジックは変更なし) ...
     final auth = FirebaseAuth.instance;
     final firestore = FirebaseFirestore.instance;
     final storage = FirebaseStorage.instance;
@@ -86,7 +94,6 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
       );
       final uid = userCredential.user!.uid;
 
-      // ★ 修正: 画像アップロード (Web/Mobile分岐)
       if (_iconImage != null) {
         final ref = storage.ref().child('user_icons/$uid.png');
         if (kIsWeb) {
@@ -140,120 +147,231 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
     }
   }
 
+  // 共通スタイル (おしゃれ版)
+  InputDecoration _buildInputDecoration(String label, IconData? icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+      prefixIcon: icon != null ? Icon(icon, color: themeColor) : null,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: themeColor, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.grey[50],
+    );
+  }
+
+  // セクションヘッダー (おしゃれ版)
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 16),
+      child: Row(
+        children: [
+          Container(width: 4, height: 20, color: themeColor), // アクセントライン
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('事業者 新規登録')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Center(
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.grey.shade300,
-                    // ★ 修正: Web対応表示
-                    backgroundImage: _iconImage != null 
-                        ? (kIsWeb 
-                            ? NetworkImage(_iconImage!.path) 
-                            : FileImage(File(_iconImage!.path)) as ImageProvider)
-                        : null,
-                    child: _iconImage == null
-                        ? const Icon(Icons.add_a_photo, size: 40, color: Colors.white)
-                        : null,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('事業者 新規登録', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.black87),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [gradientStart, gradientEnd],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 10),
+                      // 画像エリア
+                      Center(
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: themeColor.withOpacity(0.3), width: 3),
+                                ),
+                                child: CircleAvatar(
+                                  radius: 50,
+                                  backgroundColor: Colors.grey.shade100,
+                                  backgroundImage: _iconImage != null 
+                                      ? (kIsWeb 
+                                          ? NetworkImage(_iconImage!.path) 
+                                          : FileImage(File(_iconImage!.path)) as ImageProvider)
+                                      : null,
+                                  child: _iconImage == null
+                                      ? Icon(Icons.store, size: 50, color: Colors.grey.shade300)
+                                      : null,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: themeColor,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Center(child: Text('店舗ロゴ・アイコン', style: TextStyle(color: Colors.grey, fontSize: 12))),
+
+                      // 基本情報セクション
+                      _buildSectionHeader('アカウント情報'),
+                      TextFormField(
+                        controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: _buildInputDecoration('メールアドレス', Icons.email_outlined),
+                        validator: (v) => v == null || v.isEmpty ? 'メールを入力してください' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: passwordController,
+                        obscureText: _isObscure,
+                        decoration: _buildInputDecoration('パスワード (8文字以上)', Icons.lock_outline).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(_isObscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                            onPressed: () => setState(() => _isObscure = !_isObscure),
+                          ),
+                        ),
+                        validator: (v) => v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: confirmPasswordController,
+                        obscureText: _isObscure,
+                        decoration: _buildInputDecoration('パスワード確認', Icons.check_circle_outline),
+                        validator: (v) => v != passwordController.text ? 'パスワードが一致しません' : null,
+                      ),
+
+                      // 店舗詳細セクション
+                      _buildSectionHeader('店舗・事業者情報'),
+                      TextFormField(
+                        controller: adminNameController,
+                        decoration: _buildInputDecoration('事業者名 (店舗名)', Icons.store_mall_directory_outlined),
+                        validator: (v) => v == null || v.isEmpty ? '事業者名を入力してください' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: ownerNameController,
+                        decoration: _buildInputDecoration('代表者名', Icons.person_outline),
+                        validator: (v) => v == null || v.isEmpty ? '代表者名を入力してください' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: _buildInputDecoration('電話番号', Icons.phone_outlined),
+                        validator: (v) => v == null || v.isEmpty ? '電話番号を入力してください' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: category,
+                        items: const [
+                          DropdownMenuItem(value: '美容系', child: Text('美容系')),
+                          DropdownMenuItem(value: '修理業', child: Text('修理業')),
+                          DropdownMenuItem(value: '飲食業', child: Text('飲食業')),
+                          DropdownMenuItem(value: 'その他', child: Text('その他')),
+                        ],
+                        decoration: _buildInputDecoration('事業者カテゴリ', Icons.category_outlined),
+                        onChanged: (v) => setState(() => category = v),
+                        validator: (v) => v == null ? 'カテゴリを選択してください' : null,
+                      ),
+
+                      // リンク情報セクション
+                      _buildSectionHeader('リンク (任意)'),
+                      TextFormField(
+                        controller: homepageController,
+                        decoration: _buildInputDecoration('ホームページURL', Icons.language),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: xUrlController,
+                        decoration: _buildInputDecoration('X URL', Icons.link),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: instagramController,
+                        decoration: _buildInputDecoration('Instagram URL', Icons.camera_alt_outlined),
+                      ),
+
+                      const SizedBox(height: 40),
+                      
+                      Container(
+                        width: double.infinity,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(27),
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeColor.withOpacity(0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: _onRegisterPressed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: themeColor,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(27),
+                            ),
+                          ),
+                          child: const Text('登録確認へ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
               ),
-              // ... (以下のフォーム部分は変更なし) ...
-              const SizedBox(height: 8),
-              const Text('店舗ロゴ・アイコン', style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-
-              TextFormField(
-                controller: adminNameController,
-                decoration: const InputDecoration(labelText: '事業者名 (必須)'),
-                validator: (v) => v == null || v.isEmpty ? '事業者名を入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: ownerNameController,
-                decoration: const InputDecoration(labelText: '代表者名 (必須)'),
-                validator: (v) => v == null || v.isEmpty ? '代表者名を入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'メールアドレス (必須)'),
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) => v == null || v.isEmpty ? 'メールを入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: 'パスワード (8文字以上)'),
-                obscureText: true,
-                validator: (v) =>
-                    v == null || v.length < 8 ? 'パスワードは8文字以上必要です' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: confirmPasswordController,
-                decoration: const InputDecoration(labelText: 'パスワード確認'),
-                obscureText: true,
-                validator: (v) =>
-                    v != passwordController.text ? 'パスワードが一致しません' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: '電話番号 (必須)'),
-                keyboardType: TextInputType.phone,
-                validator: (v) => v == null || v.isEmpty ? '電話番号を入力してください' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: category,
-                items: const [
-                  DropdownMenuItem(value: '美容系', child: Text('美容系')),
-                  DropdownMenuItem(value: '修理業', child: Text('修理業')),
-                  DropdownMenuItem(value: '飲食業', child: Text('飲食業')),
-                  DropdownMenuItem(value: 'その他', child: Text('その他')),
-                ],
-                decoration: const InputDecoration(labelText: '事業者カテゴリ (必須)'),
-                onChanged: (v) => setState(() => category = v),
-                validator: (v) => v == null ? 'カテゴリを選択してください' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: homepageController,
-                decoration: const InputDecoration(labelText: 'ホームページURL (任意)'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: xUrlController,
-                decoration: const InputDecoration(labelText: 'X URL (任意)'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: instagramController,
-                decoration: const InputDecoration(labelText: 'Instagram URL (任意)'),
-              ),
-              const SizedBox(height: 32),
-              
-              ElevatedButton(
-                onPressed: _onRegisterPressed,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('登録確認へ'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -261,7 +379,7 @@ class _BusinessUserSignupScreenState extends State<BusinessUserSignupScreen> {
   }
 }
 
-// -------------------- 事業者認証待ち画面 --------------------
+// -------------------- 事業者認証待ち画面 (変更なし) --------------------
 class BusinessPendingScreen extends StatelessWidget {
   final String uid;
   const BusinessPendingScreen({super.key, required this.uid});
@@ -285,8 +403,6 @@ class BusinessPendingScreen extends StatelessWidget {
            return const Scaffold(body: Center(child: Text("データが見つかりません")));
         }
 
-        // DBのフィールド名が 'is_auth' か 'isAuth' かに注意
-        // 今回のモデルでは 'isAuth' として保存しているのでそちらを優先
         final isAuth = data['isAuth'] ?? false; 
 
         if (isAuth) {
