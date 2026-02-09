@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ★ ID取得用に推奨
+import 'package:firebase_auth/firebase_auth.dart'; // ID取得用
 
 import 'package:google_map_app/core/models/event_model.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/features/business_flow/presentation/screens/business_map_screen.dart';
-// ★ 追加: 編集画面をインポート
 import 'package:google_map_app/features/business_flow/presentation/screens/business_event_edit_screen.dart';
 
 class BusinessScheduleScreen extends StatefulWidget {
@@ -17,7 +16,7 @@ class BusinessScheduleScreen extends StatefulWidget {
 }
 
 class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
-  // ログイン中のIDを取得 (テスト用IDではなく実IDを使用)
+  // ログイン中のIDを取得
   String get _currentAdminId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   CalendarFormat _calendarFormat = CalendarFormat.month;
@@ -26,6 +25,11 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   
   Map<DateTime, List<EventModel>> _events = {};
   final FirestoreService _firestoreService = FirestoreService();
+
+  // テーマカラー（オレンジ）
+  static const Color themeColor = Colors.orange;
+  static const Color gradientStart = Color(0xFFFFCC80); // 薄いオレンジ
+  static const Color gradientEnd = Color(0xFFFFF3E0);   // さらに薄いオレンジ
 
   final Map<DateTime, String> _holidayMap = {
     DateTime(2025, 1, 1): '元日',
@@ -63,7 +67,6 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     Map<DateTime, List<EventModel>> data = {};
     for (var event in events) {
       DateTime eventDate;
-      
       try {
         final parts = event.eventTime.split(' ');
         if (parts.isNotEmpty) {
@@ -104,91 +107,160 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('予定管理', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.black,
+        centerTitle: true,
+        foregroundColor: Colors.black87, // アイコン色
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<List<EventModel>>(
-        stream: _firestoreService.getFutureEventsStream(_currentAdminId),
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            _events = _groupEventsByDate(snapshot.data!);
-          }
-          
-          return Column(
-            children: [
-               Container(
-                height: 420,
-                margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                padding: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                ),
-                child: TableCalendar(
-                  locale: 'ja_JP',
-                  firstDay: DateTime.utc(2024, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  calendarFormat: _calendarFormat,
-                  sixWeekMonthsEnforced: true,
-                  shouldFillViewport: false,
-                  eventLoader: _getEventsForDay,
-                  rowHeight: 52, 
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                  onFormatChanged: (format) {
-                    if (_calendarFormat != format) setState(() => _calendarFormat = format);
-                  },
-                  onPageChanged: (focusedDay) {
-                    _focusedDay = focusedDay;
-                  },
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false, titleCentered: true,
-                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.orange),
-                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.orange),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [gradientStart, gradientEnd],
+          ),
+        ),
+        child: SafeArea(
+          child: StreamBuilder<List<EventModel>>(
+            stream: _firestoreService.getFutureEventsStream(_currentAdminId),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                _events = _groupEventsByDate(snapshot.data!);
+              }
+              
+              return Column(
+                children: [
+                  // --- ヘッダー ---
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.calendar_month_rounded, color: Colors.white, size: 28),
+                        SizedBox(width: 10),
+                        Text(
+                          "Schedule",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  calendarStyle: CalendarStyle(
-                    todayDecoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle),
-                    todayTextStyle: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                    selectedDecoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                    markerDecoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                    markersMaxCount: 1,
+
+                  // --- コンテンツエリア ---
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF5F5F5), // コンテンツ背景
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              // 1. カレンダーカード
+                              Container(
+                                margin: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: TableCalendar(
+                                  locale: 'ja_JP',
+                                  firstDay: DateTime.utc(2024, 1, 1),
+                                  lastDay: DateTime.utc(2030, 12, 31),
+                                  focusedDay: _focusedDay,
+                                  calendarFormat: _calendarFormat,
+                                  sixWeekMonthsEnforced: true,
+                                  shouldFillViewport: false,
+                                  eventLoader: _getEventsForDay,
+                                  rowHeight: 52, 
+                                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                                  onDaySelected: (selectedDay, focusedDay) {
+                                    setState(() {
+                                      _selectedDay = selectedDay;
+                                      _focusedDay = focusedDay;
+                                    });
+                                  },
+                                  onFormatChanged: (format) {
+                                    if (_calendarFormat != format) setState(() => _calendarFormat = format);
+                                  },
+                                  onPageChanged: (focusedDay) {
+                                    _focusedDay = focusedDay;
+                                  },
+                                  headerStyle: const HeaderStyle(
+                                    formatButtonVisible: false, titleCentered: true,
+                                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                                    leftChevronIcon: Icon(Icons.chevron_left, color: themeColor),
+                                    rightChevronIcon: Icon(Icons.chevron_right, color: themeColor),
+                                  ),
+                                  calendarStyle: CalendarStyle(
+                                    todayDecoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle),
+                                    todayTextStyle: const TextStyle(color: themeColor, fontWeight: FontWeight.bold),
+                                    selectedDecoration: const BoxDecoration(color: themeColor, shape: BoxShape.circle),
+                                    markerDecoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                                    markersMaxCount: 1,
+                                  ),
+                                  calendarBuilders: CalendarBuilders(
+                                    dowBuilder: (context, day) {
+                                      final text = ['月', '火', '水', '木', '金', '土', '日'][day.weekday - 1];
+                                      if (day.weekday == DateTime.sunday) return Center(child: Text(text, style: const TextStyle(color: Colors.red)));
+                                      if (day.weekday == DateTime.saturday) return Center(child: Text(text, style: const TextStyle(color: Colors.blue)));
+                                      return Center(child: Text(text, style: const TextStyle(color: Colors.black54)));
+                                    },
+                                    defaultBuilder: (context, day, focusedDay) => _buildCalendarCell(day),
+                                    todayBuilder: (context, day, focusedDay) => _buildCalendarCell(day, isToday: true),
+                                    selectedBuilder: (context, day, focusedDay) => _buildCalendarCell(day, isSelected: true),
+                                    outsideBuilder: (context, day, focusedDay) => null,
+                                  ),
+                                ),
+                              ),
+
+                              // 2. 選択日のイベントリスト
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "${_selectedDay?.month ?? _focusedDay.month}月${_selectedDay?.day ?? _focusedDay.day}日の予定",
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildEventList(),
+                                    const SizedBox(height: 80), // FABのスペース確保
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  calendarBuilders: CalendarBuilders(
-                    dowBuilder: (context, day) {
-                      final text = ['月', '火', '水', '木', '金', '土', '日'][day.weekday - 1];
-                      if (day.weekday == DateTime.sunday) return Center(child: Text(text, style: const TextStyle(color: Colors.red)));
-                      if (day.weekday == DateTime.saturday) return Center(child: Text(text, style: const TextStyle(color: Colors.blue)));
-                      return Center(child: Text(text, style: const TextStyle(color: Colors.black54)));
-                    },
-                    defaultBuilder: (context, day, focusedDay) => _buildCalendarCell(day),
-                    todayBuilder: (context, day, focusedDay) => _buildCalendarCell(day, isToday: true),
-                    selectedBuilder: (context, day, focusedDay) => _buildCalendarCell(day, isSelected: true),
-                    outsideBuilder: (context, day, focusedDay) => null,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  color: Colors.grey.shade100, 
-                  child: _buildEventList(),
-                ),
-              ),
-            ],
-          );
-        },
+                ],
+              );
+            },
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -202,9 +274,11 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
             ),
           );
         },
-        label: const Text('イベント登録'),
+        label: const Text('イベント登録', style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add_location_alt_outlined),
-        backgroundColor: Colors.orange,
+        backgroundColor: themeColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
       ),
     );
   }
@@ -218,8 +292,8 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     Color? backgroundColor; 
     BoxBorder? border;
     
-    if (isSelected) { backgroundColor = Colors.orange; } 
-    else if (isToday) { backgroundColor = Colors.white; border = Border.all(color: Colors.orange, width: 2); } 
+    if (isSelected) { backgroundColor = themeColor; } 
+    else if (isToday) { backgroundColor = Colors.white; border = Border.all(color: themeColor, width: 2); } 
     else if (isHoliday || isSunday) { backgroundColor = Colors.red.shade50; } 
     else if (isSaturday) { backgroundColor = Colors.blue.shade50; }
     
@@ -249,25 +323,78 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
   Widget _buildEventList() {
     final events = _getEventsForDay(_selectedDay ?? _focusedDay);
     if (events.isEmpty) {
-      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.event_note, size: 60, color: Colors.grey.shade300), const SizedBox(height: 16), Text("予定はありません", style: TextStyle(color: Colors.grey.shade500, fontSize: 16))]));
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.event_busy, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text("予定はありません", style: TextStyle(color: Colors.grey.shade500)),
+          ],
+        ),
+      );
     }
     return ListView.builder(
-      itemCount: events.length, padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      shrinkWrap: true, // ScrollView内なので必須
+      physics: const NeverScrollableScrollPhysics(), // 親のスクロールに任せる
+      itemCount: events.length,
+      padding: EdgeInsets.zero,
       itemBuilder: (context, index) {
         final event = events[index];
-        return Card(
-          elevation: 0, margin: const EdgeInsets.only(bottom: 12), color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
+            ],
+          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12), onTap: () => _showDetailModal(event),
+            borderRadius: BorderRadius.circular(16), 
+            onTap: () => _showDetailModal(event),
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 children: [
-                  ClipRRect(borderRadius: BorderRadius.circular(8), child: event.eventImage.isNotEmpty ? Image.network(event.eventImage, width: 70, height: 70, fit: BoxFit.cover) : Container(width: 70, height: 70, color: Colors.grey.shade100, child: const Icon(Icons.image, color: Colors.grey))),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: event.eventImage.isNotEmpty 
+                      ? Image.network(event.eventImage, width: 80, height: 80, fit: BoxFit.cover) 
+                      : Container(width: 80, height: 80, color: Colors.grey.shade100, child: const Icon(Icons.image, color: Colors.grey)),
+                  ),
                   const SizedBox(width: 16),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(event.eventName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), Row(children: [const Icon(Icons.access_time, size: 14, color: Colors.orange), const SizedBox(width: 4), Text(event.eventTime, style: const TextStyle(fontSize: 13, color: Colors.black54))]), if (event.description.isNotEmpty) ...[const SizedBox(height: 4), Text(event.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))]])),
-                  const Icon(Icons.chevron_right, color: Colors.grey),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: themeColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(event.categoryId, style: const TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(event.eventName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(event.eventTime, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
             ),
@@ -277,7 +404,7 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
     );
   }
 
-  // ★ 修正: モーダルに編集ボタンを追加
+  // モーダル (デザイン微調整)
   void _showDetailModal(EventModel event) {
      showModalBottomSheet(
       context: context,
@@ -285,19 +412,20 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
       isScrollControlled: true,
       builder: (context) {
         return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
+          height: MediaQuery.of(context).size.height * 0.85, // 少し高く
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
+              // 画像エリア
               Stack(
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     child: Container(
-                      height: 250,
+                      height: 220,
                       width: double.infinity,
                       color: Colors.grey.shade100,
                       child: event.eventImage.isNotEmpty
@@ -324,26 +452,37 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // タイトルと評価 (あれば)
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
+                              color: themeColor.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.shade100),
                             ),
                             child: Text(
                               event.categoryId,
-                              style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12),
+                              style: const TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 13),
                             ),
                           ),
+                          // 平均評価表示（もし値があれば）
+                          if (event.reviewCount > 0)
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.amber, size: 18),
+                                const SizedBox(width: 4),
+                                Text(event.avgRating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                Text(" (${event.reviewCount})", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                              ],
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Text(
                         event.eventName,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
                       
@@ -365,7 +504,7 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
                       
                       const SizedBox(height: 40),
                       
-                      // ★ 修正: 編集・削除ボタンを横並びに配置
+                      // 編集・削除ボタン
                       Row(
                         children: [
                           Expanded(
@@ -373,7 +512,6 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
                               height: 50,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  // 編集画面へ遷移
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -384,27 +522,28 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
                                 icon: const Icon(Icons.edit),
                                 label: const Text("編集"),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
+                                  backgroundColor: themeColor,
                                   foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  elevation: 2,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: SizedBox(
                               height: 50,
                               child: OutlinedButton.icon(
                                 onPressed: () {
-                                  Navigator.pop(context); // モーダルを閉じてから削除確認へ
+                                  Navigator.pop(context);
                                   _confirmDelete(event);
                                 },
                                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                                 label: const Text("削除", style: TextStyle(color: Colors.red)),
                                 style: OutlinedButton.styleFrom(
                                   side: BorderSide(color: Colors.red.shade200),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 ),
                               ),
                             ),
@@ -428,12 +567,12 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Colors.black54, size: 20),
+          child: Icon(icon, color: Colors.black54, size: 22),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -455,7 +594,7 @@ class _BusinessScheduleScreenState extends State<BusinessScheduleScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('削除の確認'),
+        title: const Text('削除の確認', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('この予定を削除してもよろしいですか？\nこの操作は取り消せません。'),
         actions: [
           TextButton(

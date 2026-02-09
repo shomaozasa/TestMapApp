@@ -9,7 +9,7 @@ import 'package:google_map_app/core/models/user_model.dart';
 
 // 作成したログアウトボタンをインポート
 import 'package:google_map_app/features/_authentication/presentation/screens/logout_button.dart';
-// ★ 追加: レビュー履歴画面をインポート
+// レビュー履歴画面をインポート
 import 'package:google_map_app/features/user_flow/presentation/screens/review_history_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -34,6 +34,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Uint8List? _webImageBytes;
 
   final ImagePicker _picker = ImagePicker();
+
+  // テーマカラー
+  static const Color themeColor = Color(0xFF4A90E2);
+  static const Color gradientStart = Color(0xFFE3F2FD); // 薄い青
+  static const Color gradientEnd = Color(0xFFF5F5F5);   // 白に近いグレー
 
   @override
   void initState() {
@@ -145,82 +150,159 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  // 入力欄のスタイル定義
+  InputDecoration _buildInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.grey[600]),
+      prefixIcon: Icon(icon, color: themeColor),
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: themeColor, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('マイページ'),
+        title: const Text('マイページ', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black87,
         actions: const [
-          LogoutButton(), // ログアウトボタン
+          Padding(
+            padding: EdgeInsets.only(right: 8.0),
+            child: LogoutButton(),
+          ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    _buildIconPicker(),
-                    const SizedBox(height: 32),
-                    TextFormField(
-                      controller: _userNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'ユーザー名',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => v!.isEmpty ? '入力してください' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _emailController,
-                      readOnly: true,
-                      style: const TextStyle(color: Colors.grey),
-                      decoration: const InputDecoration(
-                        labelText: 'メールアドレス',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Color(0xFFF5F5F5),
-                        prefixIcon: Icon(Icons.lock, size: 18, color: Colors.grey),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    ElevatedButton(
-                      onPressed: _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text('変更を保存', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    
-                    // ★ 追加: レビュー履歴画面への遷移ボタン
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ReviewHistoryScreen()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Colors.grey),
+          ? Container(
+              color: Colors.white,
+              child: const Center(child: CircularProgressIndicator()),
+            )
+          : Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [gradientStart, gradientEnd],
+                ),
+              ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      // プロフィール画像エリア
+                      _buildIconPicker(),
+                      const SizedBox(height: 24),
+                      
+                      // メインフォームカード
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("基本情報", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                const SizedBox(height: 16),
+                                
+                                TextFormField(
+                                  controller: _userNameController,
+                                  decoration: _buildInputDecoration('ユーザー名', Icons.person_outline),
+                                  validator: (v) => v!.isEmpty ? '入力してください' : null,
+                                ),
+                                const SizedBox(height: 16),
+                                
+                                TextFormField(
+                                  controller: _emailController,
+                                  readOnly: true,
+                                  style: const TextStyle(color: Colors.grey),
+                                  decoration: _buildInputDecoration('メールアドレス', Icons.email_outlined).copyWith(
+                                    fillColor: Colors.grey[100], // ReadOnly感
+                                    prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                                  ),
+                                ),
+                                const SizedBox(height: 30),
+                                
+                                // 保存ボタン
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    onPressed: _saveProfile,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: themeColor,
+                                      foregroundColor: Colors.white,
+                                      elevation: 2,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(25),
+                                      ),
+                                    ),
+                                    child: const Text('変更を保存', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: const Text("レビュー履歴を見る", style: TextStyle(color: Colors.black87)),
                       ),
-                    ),
-                  ],
+
+                      const SizedBox(height: 20),
+
+                      // メニューカード
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        color: Colors.white,
+                        child: Column(
+                          children: [
+                            _buildMenuTile(
+                              icon: Icons.history,
+                              title: "レビュー履歴",
+                              subtitle: "過去に投稿したレビューを確認・編集",
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const ReviewHistoryScreen()),
+                                );
+                              },
+                            ),
+                            // 今後、他のメニュー（通知設定など）が増えたらここに追加
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ),
     );
   }
 
+  // アイコンピッカー
   Widget _buildIconPicker() {
     ImageProvider? imageProvider;
 
@@ -239,24 +321,58 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       child: Stack(
         alignment: Alignment.bottomRight,
         children: [
-          CircleAvatar(
-            radius: 60,
-            backgroundColor: Colors.grey.shade300,
-            backgroundImage: imageProvider,
-            child: imageProvider == null
-                ? const Icon(Icons.person, size: 60, color: Colors.white)
-                : null,
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 60,
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage: imageProvider,
+              child: imageProvider == null
+                  ? Icon(Icons.person, size: 60, color: Colors.grey.shade400)
+                  : null,
+            ),
           ),
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(8),
             decoration: const BoxDecoration(
-              color: Colors.blue,
+              color: themeColor,
               shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
             ),
             child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
           ),
         ],
       ),
+    );
+  }
+
+  // メニュー項目ウィジェット
+  Widget _buildMenuTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: themeColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: themeColor),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
     );
   }
 }

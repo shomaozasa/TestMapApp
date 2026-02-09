@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/models/template_model.dart';
-
 import 'package:google_map_app/core/service/storage_service.dart';
 
 class TemplateManagementScreen extends StatefulWidget {
@@ -18,111 +17,226 @@ class TemplateManagementScreen extends StatefulWidget {
 class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
+  // テーマカラー
+  static const Color themeColor = Colors.orange;
+  static const Color gradientStart = Color(0xFFFFCC80);
+  static const Color gradientEnd = Color(0xFFFFF3E0);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('テンプレート管理'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<List<TemplateModel>>(
-        stream: _firestoreService.getTemplatesStream(widget.adminId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final templates = snapshot.data ?? [];
-
-          if (templates.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.note_add_outlined, size: 60, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  const Text('テンプレートがありません\n右下のボタンから作成してください', 
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: templates.length,
-            itemBuilder: (context, index) {
-              final template = templates[index];
-              return Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.grey.shade200),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [gradientStart, gradientEnd],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // --- ヘッダー ---
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.copy_all_rounded, color: Colors.white, size: 28),
+                    SizedBox(width: 10),
+                    Text(
+                      "Templates",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        fontFamily: 'Roboto',
+                      ),
+                    ),
+                  ],
                 ),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _showTemplateDetails(context, template),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                            image: template.imagePath.isNotEmpty
-                                ? DecorationImage(image: NetworkImage(template.imagePath), fit: BoxFit.cover)
-                                : null,
-                          ),
-                          child: template.imagePath.isEmpty
-                              ? const Icon(Icons.image, color: Colors.grey)
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(template.templateName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              const SizedBox(height: 4),
-                              Text("${template.categoryId}  |  ${template.eventName}", style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 2),
-                              Text(
-                                (template.startTime.isNotEmpty && template.endTime.isNotEmpty)
-                                    ? "${template.startTime} ～ ${template.endTime}"
-                                    : "時間指定なし (登録時に設定)",
-                                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                          onPressed: () async {
-                            await _firestoreService.deleteTemplate(template.id);
+              ),
+
+              // --- コンテンツエリア ---
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                    child: StreamBuilder<List<TemplateModel>>(
+                      stream: _firestoreService.getTemplatesStream(widget.adminId),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final templates = snapshot.data ?? [];
+
+                        if (templates.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.note_add_outlined, size: 60, color: Colors.grey.shade300),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'テンプレートがありません\n右下のボタンから作成してください',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey.shade500),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: templates.length,
+                          itemBuilder: (context, index) {
+                            final template = templates[index];
+                            return _buildTemplateCard(template);
                           },
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),
-              );
-            },
-          );
-        },
+              ),
+            ],
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showTemplateForm(context),
-        label: const Text('新規作成'),
+        label: const Text('新規作成', style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add),
-        backgroundColor: Colors.orange,
+        backgroundColor: themeColor,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
+    );
+  }
+
+  // テンプレートカード
+  Widget _buildTemplateCard(TemplateModel template) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _showTemplateDetails(context, template),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                // サムネイル画像
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    image: template.imagePath.isNotEmpty
+                        ? DecorationImage(image: NetworkImage(template.imagePath), fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: template.imagePath.isEmpty
+                      ? Icon(Icons.image, color: Colors.grey.shade400, size: 30)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                
+                // 詳細情報
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: themeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          template.templateName,
+                          style: const TextStyle(fontSize: 10, color: themeColor, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        template.eventName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (template.startTime.isNotEmpty && template.endTime.isNotEmpty)
+                            ? "${template.startTime} ～ ${template.endTime}"
+                            : "時間指定なし",
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // 削除ボタン
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                  onPressed: () => _confirmDelete(template),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(TemplateModel template) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('削除の確認', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('このテンプレートを削除してもよろしいですか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('キャンセル', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _firestoreService.deleteTemplate(template.id);
+            },
+            child: const Text('削除する', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -133,7 +247,7 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _TemplateForm(adminId: widget.adminId),
     );
   }
@@ -149,27 +263,27 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
           height: MediaQuery.of(context).size.height * 0.7,
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 画像エリア
               Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     child: Container(
                       height: 200,
                       width: double.infinity,
-                      color: Colors.grey.shade200,
+                      color: Colors.grey.shade100,
                       child: template.imagePath.isNotEmpty
                           ? Image.network(template.imagePath, fit: BoxFit.cover)
-                          : const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
+                          : const Center(child: Icon(Icons.image, size: 60, color: Colors.grey)),
                     ),
                   ),
                   Positioned(
-                    top: 10,
-                    right: 10,
+                    top: 16,
+                    right: 16,
                     child: CircleAvatar(
                       backgroundColor: Colors.black.withOpacity(0.5),
                       child: IconButton(
@@ -186,35 +300,55 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          "テンプレート名: ${template.templateName}",
-                          style: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              "テンプレート: ${template.templateName}",
+                              style: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: themeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              template.categoryId,
+                              style: const TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(template.eventName, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 20),
-                      _buildInfoRow(Icons.category, 'カテゴリ', template.categoryId),
                       const SizedBox(height: 16),
+                      Text(template.eventName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 24),
+                      
                       _buildInfoRow(
-                        Icons.access_time, 
+                        Icons.access_time_filled, 
                         '設定時間', 
                         (template.startTime.isNotEmpty && template.endTime.isNotEmpty)
                             ? "${template.startTime} ～ ${template.endTime}"
                             : "未設定 (登録時に指定)"
                       ),
-                      const Divider(height: 40),
-                      Text('詳細情報', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24.0),
+                        child: Divider(),
+                      ),
+                      
+                      const Text('詳細情報', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 8),
                       Text(
                         template.description.isNotEmpty ? template.description : '詳細情報はありません。',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.5)
+                        style: const TextStyle(height: 1.6, fontSize: 15, color: Colors.black87),
                       ),
                       const SizedBox(height: 40),
                     ],
@@ -232,15 +366,19 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Colors.black54, size: 22),
-        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.black54, size: 22),
+        ),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -272,7 +410,6 @@ class _TemplateFormState extends State<_TemplateForm> {
   Uint8List? _imageBytes;
   final ImagePicker _picker = ImagePicker();
   
-  // ★ 仮のStorageServiceを使用
   final StorageService _storageService = StorageService();
   final FirestoreService _firestoreService = FirestoreService();
   
@@ -290,15 +427,27 @@ class _TemplateFormState extends State<_TemplateForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ドラッグハンドル
             Center(
               child: Container(
                 width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
+                margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
               ),
             ),
-            const Center(
-              child: Text('テンプレート作成', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            
+            // ヘッダー (タイトル & 閉じるボタン)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('テンプレート作成', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
@@ -308,9 +457,11 @@ class _TemplateFormState extends State<_TemplateForm> {
               decoration: InputDecoration(
                 hintText: '例: 平日ランチ',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade50,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             _buildSectionLabel('カテゴリ', isRequired: true),
             Wrap(
@@ -320,10 +471,10 @@ class _TemplateFormState extends State<_TemplateForm> {
                 return ChoiceChip(
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: Colors.orange.shade100,
+                  selectedColor: Colors.orange,
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.orange.shade900 : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
                   ),
                   backgroundColor: Colors.grey.shade100,
                   onSelected: (bool selected) {
@@ -332,31 +483,31 @@ class _TemplateFormState extends State<_TemplateForm> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             _buildSectionLabel('活動時間 (空欄なら登録時に設定)', isRequired: false),
             Row(
               children: [
                 Expanded(child: _buildTimeBox('開始', _startTime, true)),
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text('～', style: TextStyle(fontSize: 20, color: Colors.grey)),
+                  padding: EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Icon(Icons.arrow_forward, color: Colors.grey, size: 20),
                 ),
                 Expanded(child: _buildTimeBox('終了', _endTime, false)),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             _buildSectionLabel('デフォルト写真 (任意)', isRequired: false),
             GestureDetector(
               onTap: _pickImage,
               child: Container(
-                height: 120,
+                height: 140,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
                   image: _imageBytes != null
                       ? DecorationImage(image: MemoryImage(_imageBytes!), fit: BoxFit.cover)
                       : null,
@@ -365,7 +516,8 @@ class _TemplateFormState extends State<_TemplateForm> {
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.add_a_photo, size: 32, color: Colors.grey),
+                          Icon(Icons.add_photo_alternate_outlined, size: 40, color: Colors.grey),
+                          SizedBox(height: 8),
                           Text('写真をアップロード', style: TextStyle(color: Colors.grey, fontSize: 12)),
                         ],
                       )
@@ -375,15 +527,16 @@ class _TemplateFormState extends State<_TemplateForm> {
             if (_imageBytes != null)
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
+                child: TextButton.icon(
                   onPressed: () => setState(() {
                     _pickedImage = null;
                     _imageBytes = null;
                   }),
-                  child: const Text('削除', style: TextStyle(color: Colors.red)),
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  label: const Text('画像を削除', style: TextStyle(color: Colors.red)),
                 ),
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             _buildSectionLabel('イベント名 / PRタイトル', isRequired: true),
             TextField(
@@ -391,36 +544,42 @@ class _TemplateFormState extends State<_TemplateForm> {
               decoration: InputDecoration(
                 hintText: '例: 本日の日替わり定食',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade50,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             
             TextField(
               controller: _descriptionController,
-              maxLines: 3,
+              maxLines: 4,
               decoration: InputDecoration(
                 hintText: '詳細説明 (任意)',
+                alignLabelWithHint: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Colors.grey.shade50,
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 40),
 
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 54,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
                 ),
                 onPressed: _isLoading ? null : _saveTemplate,
                 child: _isLoading 
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('保存', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  : const Text('テンプレートを保存', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -432,13 +591,13 @@ class _TemplateFormState extends State<_TemplateForm> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
           if (isRequired)
             Container(
               margin: const EdgeInsets.only(left: 8),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4)),
-              child: Text('必須', style: TextStyle(fontSize: 10, color: Colors.red.shade700)),
+              child: const Text('必須', style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
@@ -484,7 +643,7 @@ class _TemplateFormState extends State<_TemplateForm> {
                         const Text("時間を選択", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text("完了", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: const Text("完了", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
                         ),
                       ],
                     ),
@@ -523,11 +682,11 @@ class _TemplateFormState extends State<_TemplateForm> {
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: hasTime ? Colors.orange : Colors.grey.shade300),
+          border: Border.all(color: hasTime ? Colors.orange : Colors.grey.shade300, width: hasTime ? 2 : 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,21 +694,21 @@ class _TemplateFormState extends State<_TemplateForm> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
                 if (hasTime)
                   GestureDetector(
                     onTap: () => setState(() {
                       if (isStart) _startTime = ""; else _endTime = "";
                     }),
-                    child: const Icon(Icons.close, size: 14, color: Colors.grey),
+                    child: const Icon(Icons.close, size: 16, color: Colors.grey),
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               hasTime ? timeStr : "--:--",
               style: TextStyle(
-                fontSize: 18, 
+                fontSize: 20, 
                 fontWeight: FontWeight.bold,
                 color: hasTime ? Colors.black87 : Colors.grey.shade400,
               ),

@@ -64,7 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
       var businessDoc = await firestore.collection('businesses').doc(uid).get();
       if (businessDoc.exists) {
         final data = businessDoc.data()!;
-        final isAuth = data['isAuth'] ?? false;
+        // ★ 修正箇所: Firestoreのフィールド名は 'is_auth' です
+        final isAuth = data['is_auth'] ?? false; 
         final isStopped = data['is_stoped'] ?? false;
 
         if (isStopped) {
