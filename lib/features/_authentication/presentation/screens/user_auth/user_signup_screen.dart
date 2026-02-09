@@ -70,7 +70,6 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
   }
 
   Future<void> _performRegistration() async {
-    // ... (ロジックは変更なし) ...
     final auth = FirebaseAuth.instance;
     final firestore = FirebaseFirestore.instance;
     final storage = FirebaseStorage.instance;
@@ -168,6 +167,9 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: Container(
+        // ★ 修正: ここで画面サイズいっぱいに広げる指定を追加
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
