@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// ★ パス修正: 階層が変わったので絶対パス(package:...)での指定を推奨
+import 'package:firebase_messaging/firebase_messaging.dart'; // ★追加: トークン取得用
+
+// サービスと遷移先
+import 'package:google_map_app/core/service/firestore_service.dart'; // ★追加
 import 'package:google_map_app/features/user_flow/presentation/screens/user_home_screen.dart';
 import 'package:google_map_app/features/business_flow/presentation/screens/business_home_screen.dart';
 
@@ -19,7 +22,21 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
   
   bool _isLoading = false;
-  bool _isObscure = true; // パスワード表示切替用
+  bool _isObscure = true;
+
+  // ★ 追加: FCMトークンを保存する処理
+  Future<void> _saveFcmToken(String uid) async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        final firestoreService = FirestoreService();
+        await firestoreService.saveUserToken(uid, token);
+        debugPrint("FCM Token saved for $uid");
+      }
+    } catch (e) {
+      debugPrint("Failed to save FCM token: $e");
+    }
+  }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -51,7 +68,9 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
 
-        // 利用者ホームへ
+        // ★ ログイン成功時にトークン保存
+        await _saveFcmToken(uid);
+
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -64,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
       var businessDoc = await firestore.collection('businesses').doc(uid).get();
       if (businessDoc.exists) {
         final data = businessDoc.data()!;
-        // ★ 修正箇所: Firestoreのフィールド名は 'is_auth' です
+        // ★ 修正済み: Firestoreのフィールド名は 'is_auth'
         final isAuth = data['is_auth'] ?? false; 
         final isStopped = data['is_stoped'] ?? false;
 
@@ -76,7 +95,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         if (!isAuth) {
-          // 事業者認証待ち画面へ
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
@@ -87,7 +105,9 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // 認証済みなら事業者ホームへ
+        // ★ ログイン成功時にトークン保存
+        await _saveFcmToken(uid);
+
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -96,7 +116,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // どちらにも存在しない場合
       throw FirebaseAuthException(
         code: 'user-not-found',
         message: 'ユーザーデータが存在しません',
@@ -112,14 +131,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // スプラッシュ画面と共通のグラデーションカラー
+    // 共通のグラデーションカラー
     const gradientColors = [
       Color(0xFF90CAF9), // Light Blue
       Color(0xFFFFCC80), // Light Orange
     ];
 
     return Scaffold(
-      // AppBarの裏までbodyを広げる
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -152,7 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // ロゴ・アイコンエリア
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -169,12 +186,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Icon(
                       Icons.lock_person_rounded,
                       size: 50,
-                      color: Color(0xFFFFCC80), // オレンジ系のアクセント
+                      color: Color(0xFFFFCC80),
                     ),
                   ),
                   const SizedBox(height: 24),
                   
-                  // タイトルエリア
                   const Text(
                     'ログイン',
                     style: TextStyle(
@@ -183,31 +199,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.white,
                       letterSpacing: 1.5,
                       shadows: [
-                        Shadow(
-                          color: Colors.black26,
-                          offset: Offset(0, 2),
-                          blurRadius: 4,
-                        ),
+                        Shadow(color: Colors.black26, offset: Offset(0, 2), blurRadius: 4),
                       ],
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'アカウント情報を入力してください',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.white70, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 32),
 
-                  // フォームカード
                   Card(
                     elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     color: Colors.white.withOpacity(0.95),
                     child: Padding(
                       padding: const EdgeInsets.all(32),
@@ -215,7 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         key: _formKey,
                         child: Column(
                           children: [
-                            // メールアドレス入力
                             TextFormField(
                               controller: emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -223,20 +227,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 labelText: 'メールアドレス',
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                                 prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                               ),
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'メールアドレスを入力してください' : null,
+                              validator: (v) => v == null || v.isEmpty ? 'メールアドレスを入力してください' : null,
                             ),
                             const SizedBox(height: 20),
 
-                            // パスワード入力
                             TextFormField(
                               controller: passwordController,
                               obscureText: _isObscure,
@@ -245,56 +244,31 @@ class _LoginScreenState extends State<LoginScreen> {
                                 labelStyle: TextStyle(color: Colors.grey[600]),
                                 prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
                                 suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _isObscure ? Icons.visibility_off : Icons.visibility,
-                                    color: Colors.grey,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isObscure = !_isObscure;
-                                    });
-                                  },
+                                  icon: Icon(_isObscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                                  onPressed: () => setState(() => _isObscure = !_isObscure),
                                 ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                               ),
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'パスワードを入力してください' : null,
+                              validator: (v) => v == null || v.isEmpty ? 'パスワードを入力してください' : null,
                             ),
                             
                             const SizedBox(height: 12),
                             
-                            // パスワード忘れリンク
                             Align(
                               alignment: Alignment.centerRight,
                               child: InkWell(
                                 onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const PasswordResetScreen(),
-                                    ),
-                                  );
+                                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PasswordResetScreen()));
                                 },
-                                child: const Text(
-                                  'パスワードを忘れた場合',
-                                  style: TextStyle(
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                                child: const Text('パスワードを忘れた場合', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
                               ),
                             ),
                             
                             const SizedBox(height: 32),
 
-                            // ログインボタン (グラデーション)
                             Container(
                               width: double.infinity,
                               height: 54,
@@ -305,41 +279,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.orange.withOpacity(0.3),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
                               ),
                               child: ElevatedButton(
                                 onPressed: _isLoading ? null : _login,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(27),
-                                  ),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
                                 ),
                                 child: _isLoading
-                                    ? const SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'ログイン',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
+                                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const Text('ログイン', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.2)),
                               ),
                             ),
                           ],

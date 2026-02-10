@@ -196,19 +196,44 @@ class FirestoreService {
         .map((doc) => doc.exists);
   }
 
+  /// 事業者をフォロー/フォロー解除する (双方向書き込み版)
+  /// 通知機能のために、事業者側にもフォロワー情報を保存する
   Future<void> toggleFollowBusiness(String businessId) async {
     if (_userId.isEmpty) return;
-    final docRef = _db
+
+    // 1. 「自分が」誰をフォローしているかのパス
+    final userFollowRef = _db
         .collection('users')
         .doc(_userId)
         .collection('followed_businesses')
         .doc(businessId);
-    final docSnapshot = await docRef.get();
-    if (docSnapshot.exists) {
-      await docRef.delete();
+
+    // 2. 「事業者が」誰にフォローされているかのパス (★新規追加: 通知用)
+    final businessFollowerRef = _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('followers')
+        .doc(_userId);
+
+    // 現在の状態を確認
+    final docSnapshot = await userFollowRef.get();
+    final bool isFollowing = docSnapshot.exists;
+
+    // バッチ処理で一括更新 (整合性を保つため)
+    final batch = _db.batch();
+
+    if (isFollowing) {
+      // フォロー解除: 両方から削除
+      batch.delete(userFollowRef);
+      batch.delete(businessFollowerRef);
     } else {
-      await docRef.set({'followedAt': FieldValue.serverTimestamp()});
+      // フォロー登録: 両方に追加
+      final data = {'followedAt': FieldValue.serverTimestamp()};
+      batch.set(userFollowRef, data);
+      batch.set(businessFollowerRef, data);
     }
+
+    await batch.commit();
   }
 
   Stream<Set<String>> getFavoriteIdsStream() {

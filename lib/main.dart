@@ -10,7 +10,10 @@ import 'firebase_options.dart';
 
 // モデル
 import 'core/models/user_model.dart';
-import 'core/models/business_user_model.dart'; // パス修正: 先頭の / を削除
+import 'core/models/business_user_model.dart';
+
+// 通知サービス
+import 'core/service/notification_service.dart'; // ★追加
 
 // 各画面のインポート
 import 'features/_authentication/presentation/screens/splash_screen.dart';
@@ -18,9 +21,15 @@ import 'features/_authentication/presentation/screens/login_screen.dart';
 import 'features/user_flow/presentation/screens/user_home_screen.dart';
 import 'features/business_flow/presentation/screens/business_home_screen.dart';
 
+// ★追加: 画面遷移用のキーをグローバルに定義
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // ★追加: 通知サービスの初期化
+  await NotificationService.initialize(navigatorKey);
 
   // ステータスバーなどの表示設定
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -38,6 +47,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Google Map App',
+      // ★追加: 画面遷移キーをセット
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.orange,
         scaffoldBackgroundColor: Colors.white,
@@ -51,8 +62,7 @@ class MyApp extends StatelessWidget {
       supportedLocales: const [Locale('ja')],
       locale: const Locale('ja'),
       
-      // ★★★ 修正箇所: 起動画面を SplashScreen に固定 ★★★
-      // 元: home: const AuthNavigationWrapper(),
+      // 起動画面を SplashScreen に固定
       home: const SplashScreen(),
       
       debugShowCheckedModeBanner: false,
@@ -61,12 +71,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// AuthNavigationWrapper は「自動ログイン機能」として残しておきますが、
-// 今回のフロー（スプラッシュ→アカウント確認→...）では
-// メインの home に設定しません。
-// 
-// 将来的に「スプラッシュ画面の中で、ログイン済みならホームへ飛ばす」
-// といった処理をする場合に再利用できます。
+// AuthNavigationWrapper (必要であれば利用)
 // ---------------------------------------------------------
 class AuthNavigationWrapper extends StatefulWidget {
   const AuthNavigationWrapper({super.key});
@@ -85,7 +90,6 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          // ここで SplashScreen を返しても、処理が一瞬で終わると表示されないことがあります
           return const SplashScreen();
         }
 
@@ -138,7 +142,7 @@ class _AuthNavigationWrapperState extends State<AuthNavigationWrapper> {
     }
 
     final businessDoc = await FirebaseFirestore.instance
-        .collection('businesses') // コレクション名を統一 (businesses推奨)
+        .collection('businesses')
         .doc(uid)
         .get();
     if (businessDoc.exists) {
