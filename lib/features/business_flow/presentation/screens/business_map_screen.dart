@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+// 住所取得用パッケージ
+import 'package:geocoding/geocoding.dart';
 
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/service/storage_service.dart';
@@ -25,10 +27,12 @@ class BusinessMapScreen extends StatefulWidget {
   State<BusinessMapScreen> createState() => _BusinessMapScreenState();
 }
 
-class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProviderStateMixin {
+class _BusinessMapScreenState extends State<BusinessMapScreen>
+    with TickerProviderStateMixin {
   String get _currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
+  final Completer<GoogleMapController> _controller =
+      Completer<GoogleMapController>();
 
   static const LatLng _kFallbackLocation = LatLng(33.590354, 130.401719);
   LatLng? _currentPosition;
@@ -62,14 +66,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
   // 通知・自動処理制御用セット
   final Set<String> _notifiedStartIds = {};
   final Set<String> _notifiedEndIds = {};
-  final Set<String> _autoFinishedIds = {}; // ★ 追加: 自動終了したイベントIDを記録
+  final Set<String> _autoFinishedIds = {};
 
   final FirestoreService _firestoreService = FirestoreService();
   final StorageService _storageService = StorageService();
 
   late Stream<List<EventModel>> _myEventsStream;
   late AnimationController _sonarController;
-  
+
   // 定期チェック用タイマー
   Timer? _statusCheckTimer;
 
@@ -87,7 +91,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     // 1分ごとにイベントの状態をチェック
     _statusCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       setState(() {
-        // UI更新のためにSetStateを呼ぶ（ストリームデータは自動更新されるが、ダイアログロジックを走らせるため）
+        // UI更新のためにSetStateを呼ぶ
       });
     });
   }
@@ -128,6 +132,33 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     return await Geolocator.getCurrentPosition();
   }
 
+  // --- 住所自動取得メソッド (修正済み) ---
+  Future<void> _updateAddressFromLatLng(LatLng latLng) async {
+    try {
+      // エラーの原因となっていた localeIdentifier を削除
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        latLng.latitude,
+        latLng.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        // 住所の構成要素を結合
+        String address =
+            "${place.administrativeArea ?? ''}${place.locality ?? ''}${place.subLocality ?? ''}${place.thoroughfare ?? ''}${place.subThoroughfare ?? ''}";
+
+        if (mounted) {
+          setState(() {
+            _addressController.text = address;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("住所取得エラー: $e");
+      // エラー時は何もしない（ユーザーの手動入力を待つ）
+    }
+  }
+
   // --- ヘルパーメソッド ---
 
   String _formatDate(DateTime date) {
@@ -144,16 +175,16 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     try {
       final parts = eventTimeStr.split(' - ');
       if (parts.length != 2) return {'start': null, 'end': null};
-      
-      final startFullStr = parts[0]; 
+
+      final startFullStr = parts[0];
       final endTimeStr = parts[1];
-      
+
       final format = DateFormat('yyyy/MM/dd HH:mm');
       final startDateTime = format.parse(startFullStr);
-      
+
       final dateStr = startFullStr.split(' ')[0];
       final endDateTime = format.parse('$dateStr $endTimeStr');
-      
+
       return {'start': startDateTime, 'end': endDateTime};
     } catch (e) {
       return {'start': null, 'end': null};
@@ -162,7 +193,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
 
   bool _isWithinEventTime(String eventTimeStr) {
     final times = _parseEventTime(eventTimeStr);
-    if (times['start'] == null || times['end'] == null) return true; // 未定ならとりあえず営業可能とする
+    if (times['start'] == null || times['end'] == null)
+      return true; // 未定ならとりあえず営業可能とする
     final now = DateTime.now();
     return now.isAfter(times['start']!) && now.isBefore(times['end']!);
   }
@@ -178,10 +210,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
 
       if (start == null || end == null) continue;
 
-      // 1. 開始時間のチェック (準備中 -> 営業中への提案)
-      if (event.status == EventStatus.scheduled && 
-          now.isAfter(start) && now.isBefore(end)) {
-        
+      // 1. 開始時間のチェック
+      if (event.status == EventStatus.scheduled &&
+          now.isAfter(start) &&
+          now.isBefore(end)) {
         if (!_notifiedStartIds.contains(event.id)) {
           _notifiedStartIds.add(event.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -191,20 +223,21 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
       }
 
       // 2. 終了時間のチェック
-      if ((event.status == EventStatus.active || event.status == EventStatus.breakTime) &&
+      if ((event.status == EventStatus.active ||
+              event.status == EventStatus.breakTime) &&
           now.isAfter(end)) {
-        
-        // ★ 追加: 終了予定から30分経過している場合は自動終了させる
         if (now.isAfter(end.add(const Duration(minutes: 30)))) {
           if (!_autoFinishedIds.contains(event.id)) {
             _autoFinishedIds.add(event.id);
-            
-            // 自動で「終了」ステータスに更新
-            _firestoreService.updateEventStatus(event.id, EventStatus.finished).then((_) {
+
+            _firestoreService
+                .updateEventStatus(event.id, EventStatus.finished)
+                .then((_) {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('「${event.eventName}」は終了時刻から30分経過したため自動終了しました'),
+                    content:
+                        Text('「${event.eventName}」は終了時刻から30分経過したため自動終了しました'),
                     backgroundColor: Colors.grey,
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -212,9 +245,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
               }
             });
           }
-        } 
-        // 30分以内の場合は確認ダイアログを出す
-        else if (!_notifiedEndIds.contains(event.id)) {
+        } else if (!_notifiedEndIds.contains(event.id)) {
           _notifiedEndIds.add(event.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _showEndDialog(event);
@@ -232,7 +263,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
       builder: (context) {
         return AlertDialog(
           title: const Text("イベント開始時刻です"),
-          content: Text("「${event.eventName}」の開始時刻になりました。\nステータスを「営業中」に変更しますか？"),
+          content:
+              Text("「${event.eventName}」の開始時刻になりました。\nステータスを「営業中」に変更しますか？"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -242,14 +274,16 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               onPressed: () async {
                 Navigator.pop(context);
-                await _firestoreService.updateEventStatus(event.id, EventStatus.active);
+                await _firestoreService.updateEventStatus(
+                    event.id, EventStatus.active);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('営業を開始しました！')),
                   );
                 }
               },
-              child: const Text("開始する (営業中へ)", style: TextStyle(color: Colors.white)),
+              child: const Text("開始する (営業中へ)",
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -275,7 +309,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
               style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
               onPressed: () async {
                 Navigator.pop(context);
-                await _firestoreService.updateEventStatus(event.id, EventStatus.finished);
+                await _firestoreService.updateEventStatus(
+                    event.id, EventStatus.finished);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('イベントを終了しました')),
@@ -301,12 +336,11 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
       stream: _myEventsStream,
       builder: (context, snapshot) {
         final myEvents = snapshot.data ?? [];
-        
-        // イベント状態の監視を実行
+
         _monitorEvents(myEvents);
 
         final Set<Marker> markers = {};
-        
+
         for (var event in myEvents) {
           markers.add(
             Marker(
@@ -329,7 +363,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                 animation: _sonarController,
                 builder: (context, child) {
                   final Set<Circle> activeSonars = {};
-                  
+
                   for (var event in myEvents) {
                     if (event.status == EventStatus.active) {
                       activeSonars.addAll(createActivePinSonar(
@@ -350,19 +384,18 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                       if (!_controller.isCompleted)
                         _controller.complete(controller);
                     },
-                    padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+                    padding:
+                        EdgeInsets.only(top: topPadding, bottom: bottomPadding),
                     onTap: _onMapTapped,
                     myLocationEnabled: true,
                     myLocationButtonEnabled: true,
                     markers: markers,
-                    circles: activeSonars, 
+                    circles: activeSonars,
                   );
                 },
               ),
               if (_tappedLatLng != null) _buildConfirmButtonAndHint(),
               _buildTopOverlayUI(context),
-              
-              // 当日の予定がある場合の通知バー
               if (myEvents.any((e) => e.status == EventStatus.scheduled))
                 Positioned(
                   top: topPadding + 10,
@@ -374,7 +407,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                       color: Colors.blue.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                        BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 2)),
                       ],
                     ),
                     child: const Row(
@@ -402,16 +438,14 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
     final times = _parseEventTime(event.eventTime);
     final start = times['start'];
     bool isFuture = false;
-    
+
     if (start != null) {
       isFuture = DateTime.now().isBefore(start);
     }
 
     if (event.status == EventStatus.scheduled && isFuture) {
-      // まだ始まっていない予定 -> 詳細表示
       _showBusinessEventDetails(event);
     } else {
-      // 開始時間を過ぎている、または営業中 -> ステータス変更
       _showStatusChangeSheet(event);
     }
   }
@@ -433,7 +467,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
             children: [
               if (event.eventImage.isNotEmpty)
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
                   child: Image.network(
                     event.eventImage,
                     height: 180,
@@ -445,11 +480,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                   height: 100,
                   decoration: const BoxDecoration(
                     color: Colors.grey,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  child: const Center(child: Icon(Icons.image, size: 50, color: Colors.white)),
+                  child: const Center(
+                      child: Icon(Icons.image, size: 50, color: Colors.white)),
                 ),
-              
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
@@ -459,33 +495,43 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade50,
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: Colors.blue.shade200),
                             ),
-                            child: const Text('準備中', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+                            child: const Text('準備中',
+                                style: TextStyle(
+                                    color: Colors.blue,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold)),
                           ),
                           const Spacer(),
-                          Text(event.categoryId, style: const TextStyle(color: Colors.grey)),
+                          Text(event.categoryId,
+                              style: const TextStyle(color: Colors.grey)),
                         ],
                       ),
                       const SizedBox(height: 8),
                       Text(
                         event.eventName,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 20),
                       const Divider(),
                       const SizedBox(height: 10),
-                      _buildDetailRow(Icons.calendar_today, '日時', event.eventTime),
+                      _buildDetailRow(
+                          Icons.calendar_today, '日時', event.eventTime),
                       const SizedBox(height: 16),
                       _buildDetailRow(Icons.location_on, '場所', event.address),
                       const SizedBox(height: 20),
-                      const Text('詳細', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text('詳細',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      Text(event.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+                      Text(event.description,
+                          style: const TextStyle(fontSize: 16, height: 1.5)),
                       const SizedBox(height: 40),
                       SizedBox(
                         width: double.infinity,
@@ -518,9 +564,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(label,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -537,30 +586,29 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        // ステータスに応じたコンテンツを作成
         Widget content;
-        
+
         switch (event.status) {
           case EventStatus.active:
-            // 営業中 -> 休憩・終了
             content = Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStatusButton(event, EventStatus.breakTime, '休憩する', Colors.orange),
-                _buildStatusButton(event, EventStatus.finished, '終了する', Colors.red),
+                _buildStatusButton(
+                    event, EventStatus.breakTime, '休憩する', Colors.orange),
+                _buildStatusButton(
+                    event, EventStatus.finished, '終了する', Colors.red),
               ],
             );
             break;
-            
+
           case EventStatus.breakTime:
-            // 休憩中 -> 再開
             content = Center(
-              child: _buildStatusButton(event, EventStatus.active, '再開する', Colors.green),
+              child: _buildStatusButton(
+                  event, EventStatus.active, '再開する', Colors.green),
             );
             break;
 
           case EventStatus.finished:
-            // 終了 -> メッセージのみ
             content = const Center(
               child: Column(
                 children: [
@@ -568,7 +616,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
                   SizedBox(height: 12),
                   Text(
                     "イベントは終了しました",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey),
                   ),
                 ],
               ),
@@ -577,9 +628,9 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
 
           case EventStatus.scheduled:
           default:
-            // 準備中 -> 開始
             content = Center(
-               child: _buildStatusButton(event, EventStatus.active, '営業開始', Colors.green),
+              child: _buildStatusButton(
+                  event, EventStatus.active, '営業開始', Colors.green),
             );
             break;
         }
@@ -592,15 +643,13 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
             children: [
               Text(
                 event.eventName,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text("現在の状態を変更します", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 20),
-              
-              // 動的に決定したコンテンツを表示
               content,
-              
               const SizedBox(height: 20),
             ],
           ),
@@ -622,7 +671,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         }
 
         await _firestoreService.updateEventStatus(event.id, statusKey);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -673,6 +722,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
       );
     });
+    // タップ時に住所を自動取得
+    _updateAddressFromLatLng(latLng);
   }
 
   Widget _buildConfirmButtonAndHint() {
@@ -743,6 +794,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         controller.animateCamera(
           CameraUpdate.newLatLngZoom(locationToRegister, 16),
         );
+        // 現在地取得時にも住所を自動取得
+        await _updateAddressFromLatLng(locationToRegister);
       } catch (e) {
         if (mounted)
           ScaffoldMessenger.of(context).showSnackBar(
@@ -764,7 +817,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
 
     _eventNameController.clear();
     _descriptionController.clear();
-    _addressController.text = "";
+
+    // 住所が取得できていない（マーカーがない）場合のみクリア
+    if (_tappedLatLng == null) _addressController.clear();
+
     _pickedImage = null;
     _imageBytes = null;
     _templateImageUrl = null;
@@ -1217,7 +1273,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen> with TickerProvid
         categoryId: _selectedCategory,
         address: _addressController.text,
         eventImage: imageUrl,
-        eventDateTime: DateFormat('yyyy/MM/dd').parse(_dateController.text), // 追加: 日付の正確な保存のため
+        eventDateTime: DateFormat('yyyy/MM/dd').parse(_dateController.text),
       );
       _isRegistrationSuccessful = true;
       if (mounted) Navigator.pop(context);
