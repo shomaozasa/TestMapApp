@@ -54,36 +54,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final uid = userCredential.user!.uid;
 
-      // 利用者チェック
-      var userDoc = await firestore.collection('users').doc(uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        final isStopped = data['is_stoped'] ?? false;
-        final violated = data['violated'] ?? 0;
-
-        if (isStopped || violated >= 10) {
-          throw FirebaseAuthException(
-            code: 'user-disabled',
-            message: 'アカウントが停止されています',
-          );
-        }
-
-        // ★ ログイン成功時にトークン保存
-        await _saveFcmToken(uid);
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const UserHomeScreen()),
-        );
-        return;
-      }
-
-      // 事業者チェック
+      // ★ 修正: 先に「事業者チェック」を行う
       var businessDoc = await firestore.collection('businesses').doc(uid).get();
       if (businessDoc.exists) {
         final data = businessDoc.data()!;
-        // ★ 修正済み: Firestoreのフィールド名は 'is_auth'
         final isAuth = data['is_auth'] ?? false; 
         final isStopped = data['is_stoped'] ?? false;
 
@@ -105,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // ★ ログイン成功時にトークン保存
+        // トークン保存
         await _saveFcmToken(uid);
 
         if (!mounted) return;
@@ -116,14 +90,41 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // ★ 次に「利用者チェック」を行う
+      var userDoc = await firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        final isStopped = data['is_stoped'] ?? false;
+        final violated = data['violated'] ?? 0;
+
+        if (isStopped || violated >= 10) {
+          throw FirebaseAuthException(
+            code: 'user-disabled',
+            message: 'アカウントが停止されています',
+          );
+        }
+
+        // トークン保存
+        await _saveFcmToken(uid);
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const UserHomeScreen()),
+        );
+        return;
+      }
+
+      // どちらにも存在しない場合
       throw FirebaseAuthException(
         code: 'user-not-found',
         message: 'ユーザーデータが存在しません',
       );
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ログイン失敗: ${e.message}')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ログイン失敗: ${e.message}')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

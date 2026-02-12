@@ -73,6 +73,9 @@ export const sendNewEventNotification = functions.firestore
         tokens: tokens, // 送信先リスト
       };
 
+      // ★ 追加: ここで送信先のトークン一覧をログに出す
+      console.log("Target FCM Tokens:", tokens);
+
       // 6. 送信実行
       const response = await admin.messaging().sendEachForMulticast(message);
       
