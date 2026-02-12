@@ -7,8 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-// 住所取得用パッケージ
-import 'package:geocoding/geocoding.dart';
+import 'package:geocoding/geocoding.dart'; // 住所取得用
 
 import 'package:google_map_app/core/service/firestore_service.dart';
 import 'package:google_map_app/core/service/storage_service.dart';
@@ -132,30 +131,29 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
     return await Geolocator.getCurrentPosition();
   }
 
-  // --- 住所自動取得メソッド (修正済み) ---
-  Future<void> _updateAddressFromLatLng(LatLng latLng) async {
+  // ★ 修正済み: 緯度経度から住所を取得するメソッド
+  Future<void> _getAddressFromCoordinates(LatLng position) async {
     try {
-      // エラーの原因となっていた localeIdentifier を削除
+      // localeIdentifier 引数を削除しました
       List<Placemark> placemarks = await placemarkFromCoordinates(
-        latLng.latitude,
-        latLng.longitude,
+        position.latitude,
+        position.longitude,
       );
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        // 住所の構成要素を結合
+        // 住所を結合して作成 (都道府県 + 市区町村 + 町名 + 番地)
+        // nullの場合は空文字にする
         String address =
             "${place.administrativeArea ?? ''}${place.locality ?? ''}${place.subLocality ?? ''}${place.thoroughfare ?? ''}${place.subThoroughfare ?? ''}";
 
-        if (mounted) {
-          setState(() {
-            _addressController.text = address;
-          });
-        }
+        // コントローラーにセット
+        _addressController.text = address;
+        debugPrint("取得した住所: $address");
       }
     } catch (e) {
       debugPrint("住所取得エラー: $e");
-      // エラー時は何もしない（ユーザーの手動入力を待つ）
+      // エラー時はクリアせず、手入力できるようにする
     }
   }
 
@@ -193,13 +191,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
 
   bool _isWithinEventTime(String eventTimeStr) {
     final times = _parseEventTime(eventTimeStr);
-    if (times['start'] == null || times['end'] == null)
-      return true; // 未定ならとりあえず営業可能とする
+    if (times['start'] == null || times['end'] == null) return true;
     final now = DateTime.now();
     return now.isAfter(times['start']!) && now.isBefore(times['end']!);
   }
 
-  // イベントの開始・終了監視ロジック
+  // イベントの監視ロジック
   void _monitorEvents(List<EventModel> events) {
     final now = DateTime.now();
 
@@ -226,6 +223,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
       if ((event.status == EventStatus.active ||
               event.status == EventStatus.breakTime) &&
           now.isAfter(end)) {
+        // 終了予定から30分経過している場合は自動終了させる
         if (now.isAfter(end.add(const Duration(minutes: 30)))) {
           if (!_autoFinishedIds.contains(event.id)) {
             _autoFinishedIds.add(event.id);
@@ -245,7 +243,9 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
               }
             });
           }
-        } else if (!_notifiedEndIds.contains(event.id)) {
+        }
+        // 30分以内の場合は確認ダイアログを出す
+        else if (!_notifiedEndIds.contains(event.id)) {
           _notifiedEndIds.add(event.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _showEndDialog(event);
@@ -255,7 +255,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
     }
   }
 
-  // 開始確認ダイアログ
   void _showStartDialog(EventModel event) {
     showDialog(
       context: context,
@@ -263,8 +262,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
       builder: (context) {
         return AlertDialog(
           title: const Text("イベント開始時刻です"),
-          content:
-              Text("「${event.eventName}」の開始時刻になりました。\nステータスを「営業中」に変更しますか？"),
+          content: Text("「${event.eventName}」の開始時刻になりました。\nステータスを「営業中」に変更しますか？"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -282,8 +280,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
                   );
                 }
               },
-              child: const Text("開始する (営業中へ)",
-                  style: TextStyle(color: Colors.white)),
+              child:
+                  const Text("開始する (営業中へ)", style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -291,7 +289,6 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
     );
   }
 
-  // 終了確認ダイアログ
   void _showEndDialog(EventModel event) {
     showDialog(
       context: context,
@@ -337,6 +334,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
       builder: (context, snapshot) {
         final myEvents = snapshot.data ?? [];
 
+        // イベント状態の監視を実行
         _monitorEvents(myEvents);
 
         final Set<Marker> markers = {};
@@ -396,6 +394,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
               ),
               if (_tappedLatLng != null) _buildConfirmButtonAndHint(),
               _buildTopOverlayUI(context),
+
+              // 当日の予定がある場合の通知バー
               if (myEvents.any((e) => e.status == EventStatus.scheduled))
                 Positioned(
                   top: topPadding + 10,
@@ -586,10 +586,12 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        // ステータスに応じたコンテンツを作成
         Widget content;
 
         switch (event.status) {
           case EventStatus.active:
+            // 営業中 -> 休憩・終了
             content = Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -602,6 +604,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
             break;
 
           case EventStatus.breakTime:
+            // 休憩中 -> 再開
             content = Center(
               child: _buildStatusButton(
                   event, EventStatus.active, '再開する', Colors.green),
@@ -609,6 +612,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
             break;
 
           case EventStatus.finished:
+            // 終了 -> メッセージのみ
             content = const Center(
               child: Column(
                 children: [
@@ -628,6 +632,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
 
           case EventStatus.scheduled:
           default:
+            // 準備中 -> 開始
             content = Center(
               child: _buildStatusButton(
                   event, EventStatus.active, '営業開始', Colors.green),
@@ -649,7 +654,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
               const SizedBox(height: 8),
               const Text("現在の状態を変更します", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 20),
+
+              // 動的に決定したコンテンツを表示
               content,
+
               const SizedBox(height: 20),
             ],
           ),
@@ -666,8 +674,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
 
         if (statusKey == EventStatus.active) {
           final bool isOpen = _isWithinEventTime(event.eventTime);
-          // 時間外チェックはUX向上のため、ここでは許可する（警告のみ）などが一般的ですが、
-          // 既存ロジックに合わせて今回はスルーします。
+          // 時間外チェックは省略
         }
 
         await _firestoreService.updateEventStatus(event.id, statusKey);
@@ -709,7 +716,7 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
 
   // --- 地図操作・登録 ---
 
-  void _onMapTapped(LatLng latLng) {
+  void _onMapTapped(LatLng latLng) async {
     if (_isBottomSheetOpen) {
       FocusScope.of(context).unfocus();
       return;
@@ -722,8 +729,9 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
       );
     });
-    // タップ時に住所を自動取得
-    _updateAddressFromLatLng(latLng);
+
+    // タップした場所の住所を取得してコントローラーにセット
+    await _getAddressFromCoordinates(latLng);
   }
 
   Widget _buildConfirmButtonAndHint() {
@@ -794,8 +802,10 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
         controller.animateCamera(
           CameraUpdate.newLatLngZoom(locationToRegister, 16),
         );
-        // 現在地取得時にも住所を自動取得
-        await _updateAddressFromLatLng(locationToRegister);
+        
+        // 現在地の住所を取得
+        await _getAddressFromCoordinates(locationToRegister);
+
       } catch (e) {
         if (mounted)
           ScaffoldMessenger.of(context).showSnackBar(
@@ -817,10 +827,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
 
     _eventNameController.clear();
     _descriptionController.clear();
-
-    // 住所が取得できていない（マーカーがない）場合のみクリア
-    if (_tappedLatLng == null) _addressController.clear();
-
+    // 住所の自動入力内容を消さないよう、クリア処理は削除済み
+    
     _pickedImage = null;
     _imageBytes = null;
     _templateImageUrl = null;
@@ -1273,7 +1281,8 @@ class _BusinessMapScreenState extends State<BusinessMapScreen>
         categoryId: _selectedCategory,
         address: _addressController.text,
         eventImage: imageUrl,
-        eventDateTime: DateFormat('yyyy/MM/dd').parse(_dateController.text),
+        eventDateTime:
+            DateFormat('yyyy/MM/dd').parse(_dateController.text),
       );
       _isRegistrationSuccessful = true;
       if (mounted) Navigator.pop(context);
